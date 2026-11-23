@@ -1,6 +1,5 @@
-// KNIGHT XMD - Auto System - FULLY HANDLED - Connected to handler.js
+// KNIGHT XMD - Auto System - FIXED + Connected to handler.js
 // By Faceless Tech
-
 function getSettings() {
   if (!global.db) global.db = {};
   if (!global.db.settings) {
@@ -10,7 +9,6 @@ function getSettings() {
       autoSticker: false, autoView: false, autoBio: false, autoLikeStatus: false,
     };
   }
-  // Fill missing keys
   const def = { autoRead:false, autoTyping:false, autoOnline:true, autoRecording:false, autoReact:false, autoReply:false, autoSticker:false, autoView:false, autoBio:false, autoLikeStatus:false };
   for (const k of Object.keys(def)) if (global.db.settings[k] === undefined) global.db.settings[k] = def[k];
   return global.db.settings;
@@ -33,8 +31,8 @@ function toggle({ reply, args, key, label, emoji, onMsg, offMsg, onRun, offRun }
   if (parsed === 'invalid') return reply(`❌ Invalid. Use: .${key} on  OR  .${key} off`);
   s[key] = parsed;
   if (global.dbSave) global.dbSave();
-  if (parsed && onRun) onRun();
-  if (!parsed && offRun) offRun();
+  if (parsed && onRun) { try { onRun(); } catch {} }
+  if (!parsed && offRun) { try { offRun(); } catch {} }
   return reply(`> ╭══〘 ${emoji} ${label} 〙══⊷❍\n> ┃✯╭──────────────\n> ┃✯│ Status: ${parsed ? 'ON ✅' : 'OFF ❌'}\n> ┃✯│ ${parsed ? onMsg : offMsg}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`);
 }
 
@@ -42,6 +40,7 @@ function toggle({ reply, args, key, label, emoji, onMsg, offMsg, onRun, offRun }
 let bioInterval = null;
 function startBio(sock) {
   if (bioInterval) clearInterval(bioInterval);
+  if (!sock) return;
   const update = async () => {
     try { await sock.updateProfileStatus(`⚔️ Knight XMD | ${new Date().toLocaleTimeString('en-NG')} | By Faceless Tech`); } catch {}
   };
@@ -53,35 +52,50 @@ function stopBio() { if (bioInterval) { clearInterval(bioInterval); bioInterval 
 // ===== MAIN AUTO HANDLER - Handler go call this for every message =====
 async function handleAuto(sock, m, ctx) {
   const s = getSettings();
-  const { from, body, type, msg, isGroup } = ctx;
+  const { from, body, type, msg, isGroup } = ctx || {};
   try {
+    // FIX: Never auto-react / auto-reply / auto-sticker to bot own message or status
+    if (m.key?.fromMe) {
+      if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
+      return;
+    }
+    if (from?.endsWith('@status')) return; // Status na for setupAutoStatus only
+    if (from?.endsWith('@broadcast')) return;
+
+    const prefix = ctx.prefix || '.';
+    const isCmd = body?.startsWith(prefix);
+
     // AUTO-READ
     if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
+
     // AUTO-TYPING / RECORDING - only when na command
-    if (body?.startsWith(ctx.prefix || '.')) {
+    if (isCmd) {
       if (s.autoTyping) { try { await sock.sendPresenceUpdate('composing', from); } catch {} }
       else if (s.autoRecording) { try { await sock.sendPresenceUpdate('recording', from); } catch {} }
     }
-    // AUTO-ONLINE - keep online
+    // AUTO-ONLINE
     if (s.autoOnline) { try { await sock.sendPresenceUpdate('available', from); } catch {} }
-    // AUTO-REACT - react ❤️ to every message (not commands, not status)
-    if (s.autoReact && !from.endsWith('@status')) {
+
+    // AUTO-REACT - FIX: no react to commands, no react to bot
+    if (s.autoReact && !isCmd) {
       try {
-        const emojis = ['❤️','🔥','👍','😂','😍','🙌'];
+        const emojis = ['❤️','🔥','👍','😂','😍','🙌','😎','🤩','🥰','😭','😅','😡','😱','🤯','💯','✨','🌟','🎉','👏','🙏','🤝','💪','🫶','😇','🥳','😜','🤔','👀','💖','💙','💚','💛','💜','🧡','🖤','🤍','💔','💘','💝','😊','😁','😆','😉','😋','😌','😴','🤗','🤫','🤭','🫡','🫠','🥹','😹','😻','🙈','🙉','🙊','🐶','🐱','🦁','🐯','🐺','🦊','🐻','🐼','🐨','🐸','🐵','🦄','🐲','🦋','🌸','🌹','🌻','🍕','🍔','🍟','🍩','🍦','🍫','☕','🍺','🥂','🎂','🎁','🎈','🎮','🎲','⚽','🏆','🚀','🌙','☀️','⚡','🌈','🍀','👑','💎','🪄','🧲'];
         const pick = emojis[Math.floor(Math.random()*emojis.length)];
         await sock.sendMessage(from, { react: { text: pick, key: m.key } });
       } catch {}
     }
-    // AUTO-REPLY - DM only, once per 30s
-    if (s.autoReply && !isGroup && !body?.startsWith(ctx.prefix || '.')) {
+
+    // AUTO-REPLY - DM only, once per 30s, no reply to commands
+    if (s.autoReply && !isGroup && !isCmd && body?.trim()) {
       const last = global.lastAutoReply?.[from] || 0;
       if (Date.now() - last > 30000) {
         if (!global.lastAutoReply) global.lastAutoReply = {};
         global.lastAutoReply[from] = Date.now();
-        await sock.sendMessage(from, { text: `👋 Hi! I am Knight XMD. Type ${ctx.prefix || '.'}menu for commands.` });
+        await sock.sendMessage(from, { text: `👋 Hi! I am Knight XMD. Type ${prefix}menu for commands.` });
       }
     }
-    // AUTO-STICKER - image/video -> sticker
+
+    // AUTO-STICKER - FIX: check lib exist, no crash
     if (s.autoSticker && (type === 'imageMessage' || type === 'videoMessage')) {
       try {
         const { Sticker, StickerTypes } = require('wa-sticker-formatter');
@@ -93,23 +107,26 @@ async function handleAuto(sock, m, ctx) {
         let buf = Buffer.from([]); for await (const c of stream) buf = Buffer.concat([buf, c]);
         const st = new Sticker(buf, { pack: 'Knight XMD', author: 'Faceless Tech', type: StickerTypes.FULL, quality: 70 });
         await sock.sendMessage(from, await st.toMessage(), { quoted: m });
-      } catch {}
+      } catch (e) { console.log('AutoSticker fail:', e.message); }
     }
-  } catch {}
+  } catch (e) { console.log('Auto error:', e.message); }
 }
 
-// ===== AUTO-VIEW + AUTO-LIKE STATUS - Call from connection.js =====
+// ===== AUTO-VIEW + AUTO-LIKE STATUS =====
+// FIX: Guard so e no add listener twice
+let statusListenerAdded = false;
 function setupAutoStatus(sock) {
+  if (statusListenerAdded) return;
+  statusListenerAdded = true;
   try {
     sock.ev.on('messages.upsert', async ({ messages }) => {
       const s = getSettings();
       if (!s.autoView && !s.autoLikeStatus) return;
       for (const m of messages) {
         if (!m.key.remoteJid?.endsWith('@status')) continue;
+        if (m.key.fromMe) continue;
         try {
-          // AUTO-VIEW
           if (s.autoView) await sock.readMessages([m.key]);
-          // AUTO-LIKE STATUS - like with ❤️
           if (s.autoLikeStatus) {
             await sock.sendMessage(m.key.remoteJid, { react: { text: '❤️', key: m.key } }, { participant: m.key.participant });
           }
@@ -119,7 +136,6 @@ function setupAutoStatus(sock) {
   } catch {}
 }
 
-// Restore autobio after restart
 function restoreAuto(sock) {
   const s = getSettings();
   if (s.autoBio) startBio(sock);
