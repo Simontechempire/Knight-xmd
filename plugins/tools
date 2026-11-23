@@ -1,7 +1,0 @@
-const axios = require('axios');
-module.exports = [
-{ command: ['weather'], run: async ({ reply, text }) => { if(!text) return reply('Usage: .weather Lagos'); try{ const {data}=await axios.get(`https://wttr.in/${encodeURIComponent(text)}?format=j1`); const c=data.current_condition[0]; await reply(`🌤️ Weather in ${text}\n🌡️ Temp: ${c.temp_C}°C\n💧 Humidity: ${c.humidity}%\n🌬️ Wind: ${c.windspeedKmph} km/h\n☁️ ${c.weatherDesc[0].value}`); }catch{ await reply('Weather failed'); } }},
-{ command: ['translate'], run: async ({ reply, text }) => { if(!text) return reply('Usage: .translate en hello'); const [lang,...rest]=text.split(' '); const q=rest.join(' '); try{ const {data}=await axios.get(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|${lang}`); await reply(`🌐 Translation (${lang}):\n${data.responseData.translatedText}`); }catch{ await reply('Translate failed'); } }},
-{ command: ['calculate'], run: async ({ reply, text }) => { if(!text) return reply('Usage: .calculate 2+2'); try{ const r=Function(`return (${text})`)(); await reply(`🧮 ${text} = ${r}`); }catch{ await reply('Invalid calculation'); } }},
-{ command: ['shorturl'], run: async ({ reply, text }) => { if(!text) return reply('Usage: .shorturl https://google.com'); try{ const {data}=await axios.get(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(text)}`); await reply(`🔗 Short: ${data}`); }catch{ await reply('Short failed'); } }},
-];
