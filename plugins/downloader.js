@@ -1,8 +1,10 @@
-// KNIGHT XMD - Downloader - Real File Download
-// By Faceless Tech - Uses local API key from .env, free fallback if no key
+// KNIGHT XMD - Downloader - Real File Download - FIXED
+// By Faceless Tech
 const axios = require('axios');
-const yts = require('yt-search');
-const config = require('../config');
+
+// FIXED: yt-search optional - if e no dey, bot no go crash, e go use API fallback
+let yts = null;
+try { yts = require('yt-search'); } catch { yts = null; }
 
 const LOCAL_KEY = process.env.DOWNLOAD_API_KEY || process.env.YT_API_KEY || '';
 const TIKWM_KEY = process.env.TIKWM_KEY || '';
@@ -13,21 +15,55 @@ async function getBuffer(url) {
   return Buffer.from(res.data);
 }
 
+// FIXED: Safe YouTube search - try yt-search first, then API fallback
+async function searchYT(query) {
+  // 1. Try yt-search if installed
+  if (yts) {
+    try {
+      const r = await yts(query);
+      if (r?.videos?.[0]) {
+        const v = r.videos[0];
+        return { title: v.title, url: v.url, timestamp: v.timestamp, views: v.views, thumbnail: v.thumbnail, author: v.author };
+      }
+    } catch {}
+  }
+  // 2. Fallback - free API search
+  const apis = [
+    `https://api.siputzx.my.id/api/search/youtube?query=${encodeURIComponent(query)}`,
+    `https://api.zenzxz.my.id/api/search/yt?query=${encodeURIComponent(query)}`,
+  ];
+  for (const api of apis) {
+    try {
+      const { data } = await axios.get(api, { timeout: 20000 });
+      const list = data?.result || data?.data || data?.result?.videos || [];
+      const v = Array.isArray(list) ? list[0] : list;
+      if (v && (v.url || v.videoId)) {
+        return {
+          title: v.title || query,
+          url: v.url || `https://youtu.be/${v.videoId}`,
+          timestamp: v.duration || v.timestamp || 'Unknown',
+          views: v.views || '',
+          thumbnail: v.thumbnail || v.image || '',
+          author: v.author || {},
+        };
+      }
+    } catch {}
+  }
+  return null;
+}
+
 // Helper: try many free YT MP3 APIs, return download url
 async function getYtMp3(ytUrl) {
   const apis = [
-    // Free, no key needed
     `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(ytUrl)}`,
     `https://api.zenzxz.my.id/api/download/ytmp3?url=${encodeURIComponent(ytUrl)}`,
     `https://api.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(ytUrl)}`,
-    // With local key if you add am
     LOCAL_KEY ? `https://api.your-local-api.com/ytmp3?apikey=${LOCAL_KEY}&url=${encodeURIComponent(ytUrl)}` : null,
   ].filter(Boolean);
-
   for (const api of apis) {
     try {
       const { data } = await axios.get(api, { timeout: 30000 });
-      const url = data?.result?.download || data?.download || data?.data?.download || data?.url || data?.result?.url;
+      const url = data?.result?.download || data?.download || data?.data?.download || data?.url || data?.result?.url || data?.data?.url;
       if (url) return url;
     } catch {}
   }
@@ -44,7 +80,7 @@ async function getYtMp4(ytUrl) {
   for (const api of apis) {
     try {
       const { data } = await axios.get(api, { timeout: 30000 });
-      const url = data?.result?.download || data?.download || data?.data?.download || data?.url || data?.result?.url;
+      const url = data?.result?.download || data?.download || data?.data?.download || data?.url || data?.result?.url || data?.data?.url;
       if (url) return url;
     } catch {}
   }
@@ -59,30 +95,27 @@ function box(title, lines) {
 }
 
 module.exports = [
-  // ========== PLAY / SONG - REAL AUDIO SEND ==========
   {
     command: ['play', 'song'],
     run: async ({ sock, from, m, reply, text }) => {
       if (!text) return reply('Usage: .play Asake Lonely At The Top');
       await reply('🎵 Searching... wait small');
       try {
-        const r = await yts(text);
-        const v = r.videos[0];
+        const v = await searchYT(text); // FIXED: was yts(text)
         if (!v) return reply('❌ Not found');
         await reply(box('🎵 FOUND', [`Title: ${v.title}`, `Time: ${v.timestamp}`, `Views: ${v.views}`, `Downloading audio...`]));
-
         const mp3Url = await getYtMp3(v.url);
         if (!mp3Url) {
           return reply(`🎵 *${v.title}*\n🔗 ${v.url}\n\n❌ Audio server busy, try .video ${v.url} or try again`);
         }
         const buf = await getBuffer(mp3Url);
         await sock.sendMessage(from, { audio: buf, mimetype: 'audio/mp4', fileName: `${v.title}.mp3` }, { quoted: m });
-        await sock.sendMessage(from, { image: { url: v.thumbnail }, caption: box('🎵 DOWNLOADED', [`${v.title}`, `By Knight XMD`]) });
+        if (v.thumbnail) {
+          try { await sock.sendMessage(from, { image: { url: v.thumbnail }, caption: box('🎵 DOWNLOADED', [`${v.title}`, `By Knight XMD`]) }); } catch {}
+        }
       } catch (e) { await reply('❌ Play failed: ' + e.message); }
     }
   },
-
-  // ========== VIDEO - REAL VIDEO SEND ==========
   {
     command: ['video'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -92,8 +125,7 @@ module.exports = [
         let url = text;
         let title = 'Knight XMD Video';
         if (!text.includes('http')) {
-          const r = await yts(text);
-          const v = r.videos[0];
+          const v = await searchYT(text); // FIXED: was yts(text)
           if (!v) return reply('❌ Not found');
           url = v.url; title = v.title;
         }
@@ -104,8 +136,6 @@ module.exports = [
       } catch (e) { await reply('❌ Video failed: ' + e.message); }
     }
   },
-
-  // ========== TIKTOK - REAL VIDEO SEND ==========
   {
     command: ['tiktok', 'tt'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -117,7 +147,6 @@ module.exports = [
         if (!d?.play) return reply('❌ TikTok not found');
         const buf = await getBuffer(d.play);
         await sock.sendMessage(from, { video: buf, caption: box('🎵 TIKTOK', [`👤 @${d.author?.nickname || 'Unknown'}`, `📝 ${d.title || ''}`, 'By Knight XMD']) }, { quoted: m });
-        // Also send music if e get
         if (d.music) {
           try {
             const mBuf = await getBuffer(d.music);
@@ -127,8 +156,6 @@ module.exports = [
       } catch { await reply('❌ TikTok failed, check link'); }
     }
   },
-
-  // ========== INSTAGRAM - REAL SEND ==========
   {
     command: ['instagram', 'ig'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -149,14 +176,11 @@ module.exports = [
         }
         if (!dl) return reply(`📸 Link: ${text}\n❌ Instagram server busy, open link to download`);
         const buf = await getBuffer(dl);
-        // Try image first, if fail try video
         try { await sock.sendMessage(from, { image: buf, caption: '📸 Instagram by Knight XMD' }, { quoted: m }); }
         catch { await sock.sendMessage(from, { video: buf, caption: '📸 Instagram by Knight XMD' }, { quoted: m }); }
       } catch { await reply('❌ Instagram failed'); }
     }
   },
-
-  // ========== FACEBOOK - REAL SEND ==========
   {
     command: ['facebook', 'fb'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -171,8 +195,6 @@ module.exports = [
       } catch { await reply('❌ Facebook failed'); }
     }
   },
-
-  // ========== MEDIAFIRE - REAL FILE ==========
   {
     command: ['mediafire', 'mf'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -188,8 +210,6 @@ module.exports = [
       } catch { await reply(`📁 Link: ${text}`); }
     }
   },
-
-  // ========== APK - REAL SEARCH + LINK ==========
   {
     command: ['apk'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -208,8 +228,6 @@ module.exports = [
       } catch { await reply(`📱 https://apkpure.com/search?q=${encodeURIComponent(text)}`); }
     }
   },
-
-  // ========== PINTEREST - REAL IMAGE SEND ==========
   {
     command: ['pinterest', 'pin'],
     run: async ({ sock, from, m, reply, text }) => {
@@ -226,8 +244,6 @@ module.exports = [
       } catch { await reply(`📌 https://pinterest.com/search/pins/?q=${encodeURIComponent(text)}`); }
     }
   },
-
-  // ========== GITHUB - REAL REPO INFO ==========
   {
     command: ['github', 'gh'],
     run: async ({ reply, text }) => {
