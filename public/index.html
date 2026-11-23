@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Knight XMD - Pairing Dashboard</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#050508;color:#fff;font-family:Arial} .box{max-width:420px;margin:30px auto;padding:20px;background:#111118;border-radius:20px;border:1px solid #2a2a3a;text-align:center} img{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #00ff88} input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;font-size:16px} button{width:100%;padding:14px;border-radius:12px;border:none;background:#00ff88;font-weight:900;font-size:16px} .code{font-size:32px;letter-spacing:4px;background:#000;padding:14px;border-radius:12px;margin:14px 0;display:none} .note{font-size:13px;opacity:.7}
+</style></head><body>
+<div class="box">
+<img src="https://files.catbox.moe/4nbm9j.jpg">
+<h2>⚔️ KNIGHT XMD</h2><p>By Faceless Tech</p>
+<p class="note">Enter your WhatsApp number without +<br>Example: 2348071569915</p>
+<input id="num" placeholder="2348071569915">
+<button onclick="pair()">GET PAIRING CODE</button>
+<div id="code" class="code"></div>
+<div id="msg" class="note"></div>
+<p class="note">WhatsApp > Linked Devices > Link with code<br>Enter code above</p>
+</div>
+<script>
+async function pair(){
+ const number=document.getElementById('num').value.trim();
+ if(!number) return alert('Enter number');
+ document.getElementById('msg').innerText='Generating code... wait 5 sec';
+ const r=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
+ const d=await r.json();
+ if(d.code){ document.getElementById('code').style.display='block'; document.getElementById('code').innerText=d.code; document.getElementById('msg').innerText=d.message; }
+ else document.getElementById('msg').innerText=d.message||'Failed, try again';
+}
+</script></body></html>
