@@ -2,26 +2,167 @@
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Knight XMD - Pairing Dashboard</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#050508;color:#fff;font-family:Arial} .box{max-width:420px;margin:30px auto;padding:20px;background:#111118;border-radius:20px;border:1px solid #2a2a3a;text-align:center} img{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #00ff88} input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;font-size:16px} button{width:100%;padding:14px;border-radius:12px;border:none;background:#00ff88;font-weight:900;font-size:16px} .code{font-size:32px;letter-spacing:4px;background:#000;padding:14px;border-radius:12px;margin:14px 0;display:none} .note{font-size:13px;opacity:.7}
+*{box-sizing:border-box}body{margin:0;background:#050508;color:#fff;font-family:Arial,sans-serif}
+.box{max-width:420px;margin:30px auto;padding:20px;background:#111118;border-radius:20px;border:1px solid #2a2a3a;text-align:center}
+img{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #00ff88}
+input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;font-size:16px;background:#22222e;color:#fff;outline:none}
+input:focus{border:1px solid #00ff88}
+button{width:100%;padding:14px;border-radius:12px;border:none;background:#00ff88;font-weight:900;font-size:16px;cursor:pointer;color:#000}
+button:disabled{background:#555;color:#aaa;cursor:not-allowed}
+button.secondary{background:#22222e;color:#00ff88;border:1px solid #00ff88}
+.code{font-size:32px;letter-spacing:4px;background:#000;padding:14px;border-radius:12px;margin:14px 0;display:none;font-weight:900;color:#00ff88}
+.note{font-size:13px;opacity:.7;line-height:1.5}
+.status{margin:10px 0;padding:10px;border-radius:10px;font-size:13px;display:none}
+.status.online{background:#003d1f;color:#00ff88;display:block}
+.status.waiting{background:#3d2a00;color:#ffcc00;display:block}
+.steps{text-align:left;font-size:13px;opacity:.8;line-height:1.8;margin:12px 0;background:#0a0a12;padding:12px;border-radius:12px}
+.row{display:flex;gap:8px;margin-top:10px}
+.row button{flex:1}
+.footer{font-size:11px;opacity:.5;margin-top:16px}
 </style></head><body>
 <div class="box">
-<img src="https://files.catbox.moe/4nbm9j.jpg">
+<img src="https://files.catbox.moe/4nbm9j.jpg" onerror="this.src='https://i.imgur.com/8Q9Z9.png'">
 <h2>⚔️ KNIGHT XMD</h2><p>By Faceless Tech</p>
+
+<div id="statusBox" class="status"></div>
+
 <p class="note">Enter your WhatsApp number without +<br>Example: 2348071569915</p>
-<input id="num" placeholder="2348071569915">
-<button onclick="pair()">GET PAIRING CODE</button>
+<input id="num" placeholder="2348071569915" inputmode="numeric" autocomplete="tel">
+<button id="pairBtn" onclick="pair()">GET PAIRING CODE</button>
+
 <div id="code" class="code"></div>
-<div id="msg" class="note"></div>
-<p class="note">WhatsApp > Linked Devices > Link with code<br>Enter code above</p>
+<div class="row" id="codeActions" style="display:none">
+  <button class="secondary" onclick="copyCode()">📋 Copy Code</button>
+  <button class="secondary" onclick="pair()">🔄 New Code</button>
 </div>
+<div id="msg" class="note"></div>
+
+<div class="steps">
+<b>How to pair:</b><br>
+1. Click GET PAIRING CODE<br>
+2. Copy code above<br>
+3. WhatsApp > Linked Devices > Link with phone number<br>
+4. Paste code, wait 5 sec<br>
+5. Bot go come online ✅
+</div>
+
+<div class="row">
+  <button class="secondary" onclick="checkStatus()">🔍 Check Status</button>
+  <button class="secondary" onclick="logout()">🚪 Logout</button>
+</div>
+
+<p class="footer">Prefix: . | Mode: Public<br>Knight XMD v1.0 - Faceless Tech</p>
+</div>
+
 <script>
+let currentCode = '';
+let statusTimer = null;
+
 async function pair(){
- const number=document.getElementById('num').value.trim();
- if(!number) return alert('Enter number');
- document.getElementById('msg').innerText='Generating code... wait 5 sec';
- const r=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
- const d=await r.json();
- if(d.code){ document.getElementById('code').style.display='block'; document.getElementById('code').innerText=d.code; document.getElementById('msg').innerText=d.message; }
- else document.getElementById('msg').innerText=d.message||'Failed, try again';
+  const numEl = document.getElementById('num');
+  const btn = document.getElementById('pairBtn');
+  const number = numEl.value.trim().replace(/[^0-9]/g, '');
+
+  if(!number) return alert('Enter number');
+  if(number.length < 7) return alert('Invalid number. Use full number e.g. 2348071569915');
+
+  // FIXED: Disable button + show loading, so user no go click 5 times and expire code
+  btn.disabled = true;
+  btn.innerText = 'Generating... wait 5 sec ⏳';
+  document.getElementById('msg').innerText = 'Generating code... wait 5 sec, no click again';
+  document.getElementById('code').style.display = 'none';
+  document.getElementById('codeActions').style.display = 'none';
+
+  try {
+    const r = await fetch('/api/pair', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({number}) });
+    const d = await r.json();
+
+    if(d.code){
+      currentCode = d.code;
+      document.getElementById('code').style.display = 'block';
+      document.getElementById('code').innerText = d.code;
+      document.getElementById('codeActions').style.display = 'flex';
+      document.getElementById('msg').innerText = d.message || 'Enter this code in WhatsApp';
+      showStatus('waiting', '⏳ Waiting for you to enter code in WhatsApp...');
+      // Auto check every 5s if bot don connect
+      startStatusPolling(number);
+    } else if(d.alreadyConnected) {
+      showStatus('online', '✅ Bot already connected for this number!');
+      document.getElementById('msg').innerText = 'Bot already online. Send .ping to test.';
+    } else {
+      document.getElementById('msg').innerText = d.message || 'Failed, try again';
+      showStatus('waiting', '❌ ' + (d.message || 'Failed'));
+    }
+  } catch(e) {
+    document.getElementById('msg').innerText = 'Network error, check server and try again';
+  }
+
+  btn.disabled = false;
+  btn.innerText = 'GET PAIRING CODE';
 }
+
+function copyCode(){
+  if(!currentCode) return;
+  navigator.clipboard.writeText(currentCode).then(() => {
+    document.getElementById('msg').innerText = '✅ Code copied! Paste in WhatsApp';
+  }).catch(() => {
+    // Fallback for old browsers
+    prompt('Copy code:', currentCode);
+  });
+}
+
+async function checkStatus(){
+  const number = document.getElementById('num').value.trim().replace(/[^0-9]/g, '');
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    if(d.online > 0){
+      showStatus('online', `✅ Online: ${d.online} bot(s) connected - ${d.bots.join(', ')}`);
+      document.getElementById('msg').innerText = 'Bot online! Send .ping to test.';
+    } else {
+      showStatus('waiting', '⚪ No bot online yet. Pair first.');
+      document.getElementById('msg').innerText = 'No bot online. Click GET PAIRING CODE';
+    }
+  } catch { document.getElementById('msg').innerText = 'Cannot reach server'; }
+}
+
+function startStatusPolling(number){
+  if(statusTimer) clearInterval(statusTimer);
+  let tries = 0;
+  statusTimer = setInterval(async () => {
+    tries++;
+    if(tries > 24) { clearInterval(statusTimer); return; } // stop after 2 mins
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      if(d.bots && d.bots.includes(number)){
+        showStatus('online', '✅ Connected! Bot is now online. Send .ping to test.');
+        document.getElementById('msg').innerText = '✅ Connected! You can close this page.';
+        clearInterval(statusTimer);
+      }
+    } catch {}
+  }, 5000);
+}
+
+function showStatus(type, text){
+  const el = document.getElementById('statusBox');
+  el.className = 'status ' + type;
+  el.innerText = text;
+  el.style.display = 'block';
+}
+
+async function logout(){
+  const number = document.getElementById('num').value.trim().replace(/[^0-9]/g, '');
+  if(!number) return alert('Enter number first');
+  if(!confirm('Logout this number?')) return;
+  try {
+    const r = await fetch('/api/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({number}) });
+    const d = await r.json();
+    document.getElementById('msg').innerText = d.message;
+    if(d.success) showStatus('waiting', 'Logged out. Pair again to reconnect.');
+  } catch { document.getElementById('msg').innerText = 'Logout failed'; }
+}
+
+// Check status on load
+checkStatus();
 </script></body></html>
