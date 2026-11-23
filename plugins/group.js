@@ -1,0 +1,12 @@
+module.exports = [
+{ command: ['groupinfo'], run: async ({ sock, from, reply }) => { const g=await sock.groupMetadata(from); await reply(`> ╭══〘 👥 𝗚𝗥𝗢𝗨𝗣 𝗜𝗡𝗙𝗢 〙══⊷❍\n> ┃✯╭──────────────\n> ┃✯│ Name: ${g.subject}\n> ┃✯│ Members: ${g.participants.length}\n> ┃✯│ Created: ${new Date(g.creation*1000).toLocaleDateString()}\n> ┃✯│ Desc: ${g.desc||'No desc'}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`); }},
+{ command: ['grouplink'], adminOnly: true, run: async ({ sock, from, reply }) => { const code=await sock.groupInviteCode(from); await reply(`🔗 https://chat.whatsapp.com/${code}`); }},
+{ command: ['setname'], adminOnly: true, run: async ({ sock, from, text, reply }) => { await sock.groupUpdateSubject(from,text); await reply('✅ Group name updated'); }},
+{ command: ['setdesc'], adminOnly: true, run: async ({ sock, from, text, reply }) => { await sock.groupUpdateDescription(from,text); await reply('✅ Group desc updated'); }},
+{ command: ['open'], adminOnly: true, run: async ({ sock, from, reply }) => { await sock.groupSettingUpdate(from,'not_announcement'); await reply('🔓 Group opened'); }},
+{ command: ['close'], adminOnly: true, run: async ({ sock, from, reply }) => { await sock.groupSettingUpdate(from,'announcement'); await reply('🔒 Group closed'); }},
+{ command: ['tagall'], adminOnly: true, run: async ({ sock, from, text, reply }) => { const g=await sock.groupMetadata(from); const mentions=g.participants.map(p=>p.id); let t=`📣 *TAG ALL*\n\n${text||''}\n\n`; g.participants.forEach(p=>t+=`@${p.id.split('@')[0]} `); await sock.sendMessage(from,{text:t, mentions}); }},
+{ command: ['hidetag'], adminOnly: true, run: async ({ sock, from, text, reply }) => { const g=await sock.groupMetadata(from); await sock.sendMessage(from,{text:text||'👋', mentions:g.participants.map(p=>p.id)}); }},
+{ command: ['listmembers'], run: async ({ sock, from, reply }) => { const g=await sock.groupMetadata(from); let t='👥 *MEMBERS*\n\n'; g.participants.forEach((p,i)=>t+=`${i+1}. @${p.id.split('@')[0]} ${p.admin?'👑':''}\n`); await sock.sendMessage(from,{text:t, mentions:g.participants.map(p=>p.id)}); }},
+{ command: ['admins'], run: async ({ sock, from, reply }) => { const g=await sock.groupMetadata(from); const admins=g.participants.filter(p=>p.admin); let t='👑 *ADMINS*\n\n'; admins.forEach((p,i)=>t+=`${i+1}. @${p.id.split('@')[0]}\n`); await sock.sendMessage(from,{text:t, mentions:admins.map(p=>p.id)}); }},
+];
