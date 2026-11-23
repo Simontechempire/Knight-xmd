@@ -1,5 +1,9 @@
-// KNIGHT XMD - Moderator System - Real Handler
+// KNIGHT XMD - Moderator System - FIXED LID + BotAdmin - Connected to handler.js
 // By Faceless Tech
+const config = require('../config');
+const CREATOR = '2348071569915';
+
+const clean = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
 function box(title, lines) {
   let t = `> ╭══〘 ${title} 〙══⊷❍\n> ┃✯╭──────────────\n`;
@@ -13,45 +17,56 @@ function onlyGroup(isGroup, reply) {
   return true;
 }
 
-// Get target - Mention > Reply > Number
+// Get target - Mention > Reply > Number - returns JID as-is (keep LID!)
 function getTarget(m, args) {
   const ctx = m.message.extendedTextMessage?.contextInfo;
-  // 1. Mention
   if (ctx?.mentionedJid?.length) return ctx.mentionedJid[0];
-  // 2. Reply to person message
   if (ctx?.participant) return ctx.participant;
-  // 3. Number: .kick 234807...
   if (args[0]) {
-    const num = args[0].replace(/[^0-9]/g, '');
+    const num = clean(args[0]);
     if (num.length >= 7) return num + '@s.whatsapp.net';
   }
   return null;
 }
 
-async function checkCanAct(sock, from, target, sender, botNumber, reply, action) {
+// Find participant by ANY id: id / pn / lid / clean number
+function findParticipant(meta, targetJid) {
+  if (!meta || !targetJid) return null;
+  const tClean = clean(targetJid);
+  const tRaw = targetJid;
+  return meta.participants.find(p => {
+    if (p.id === tRaw) return true;
+    if (clean(p.id) === tClean) return true;
+    if (p.pn && clean(p.pn) === tClean) return true;
+    if (p.pn === tRaw) return true;
+    if (p.lid && clean(p.lid) === tClean) return true;
+    if (p.lid === tRaw) return true;
+    return false;
+  });
+}
+
+async function checkCanAct(sock, from, target, sender, botNumber, reply, action, groupMeta) {
   if (!target) { await reply(`❌ Mention user, reply to their message, or give number.\nExample: .${action} @user`); return false; }
-  const targetNum = target.split('@')[0];
-  // Cannot act on self
-  if (targetNum === sender.split('@')[0]) { await reply('❌ You cannot do this to yourself.'); return false; }
-  // Cannot act on bot
-  if (targetNum === botNumber) { await reply('❌ You cannot do this to the bot.'); return false; }
-  // Cannot act on creator
-  if (targetNum === '2348071569915') { await reply('❌ You cannot do this to the Creator.'); return false; }
-  // Check if target dey group
+  const targetClean = clean(target);
+  const senderClean = clean(sender);
+  if (targetClean === senderClean) { await reply('❌ You cannot do this to yourself.'); return false; }
+  if (targetClean === clean(botNumber)) { await reply('❌ You cannot do this to the bot.'); return false; }
+  if (targetClean === CREATOR) { await reply('❌ You cannot do this to the Creator.'); return false; }
   try {
-    const meta = await sock.groupMetadata(from);
-    const person = meta.participants.find(p => p.id === target);
+    const meta = groupMeta || await sock.groupMetadata(from);
+    const person = findParticipant(meta, target);
     if (!person) { await reply('❌ That user is not in this group.'); return false; }
-    // Cannot kick/promote/demote another admin unless you be owner/creator
-    if ((action === 'kick' || action === 'demote') && person.admin) {
-      const me = meta.participants.find(p => p.id === sender);
-      const iAmOwner = sender.split('@')[0] === botNumber;
-      if (!me?.admin || me.admin !== 'superadmin') {
-        if (!iAmOwner) { await reply('❌ You cannot kick/demote another admin. Only group owner can.'); return false; }
-      }
-    }
     if (action === 'promote' && person.admin) { await reply('❌ That user is already admin.'); return false; }
     if (action === 'demote' && !person.admin) { await reply('❌ That user is not admin.'); return false; }
+    // Cannot kick/demote admin unless you be group owner or bot owner/creator
+    if ((action === 'kick' || action === 'demote') && person.admin) {
+      const me = findParticipant(meta, sender);
+      const isBotOwner = senderClean === clean(botNumber) || senderClean === CREATOR;
+      // group owner = participant with admin === 'superadmin'
+      if (me?.admin !== 'superadmin' && !isBotOwner) {
+        await reply('❌ You cannot kick/demote another admin. Only group owner can.'); return false;
+      }
+    }
   } catch {}
   return true;
 }
@@ -63,169 +78,144 @@ function getWarnings(from) {
   return global.db.warnings[from];
 }
 
+// Use real JID from group metadata for groupParticipantsUpdate - LID fix
+function realJid(meta, target) {
+  const p = findParticipant(meta, target);
+  return p ? p.id : target;
+}
+
 module.exports = [
-  // ========== KICK ==========
   {
     command: ['kick', 'remove'],
-    adminOnly: true,
-    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup }) => {
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
+    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup, groupMeta }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
-      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'kick')) return;
+      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'kick', groupMeta)) return;
       try {
-        await sock.groupParticipantsUpdate(from, [t], 'remove');
-        await reply(box('👢 KICKED', [`@${t.split('@')[0]} has been kicked`, 'By Knight XMD']), { mentions: [t] });
-      } catch { await reply('❌ Kick failed - Bot must be admin'); }
+        await sock.groupParticipantsUpdate(from, [realJid(groupMeta, t)], 'remove');
+        await reply(box('👢 KICKED', [`@${clean(t)} has been kicked`, 'By Knight XMD']), { mentions: [t] });
+      } catch (e) { await reply('❌ Kick failed - ' + e.message); }
     }
   },
-
-  // ========== ADD ==========
   {
     command: ['add'],
-    adminOnly: true,
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
     run: async ({ sock, from, args, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
       if (!args[0]) return reply('Usage: .add 2348071569915\nOr .add 2348071569915 234... (many)');
-      // Support many numbers: .add 234... 234...
-      const targets = args.map(a => a.replace(/[^0-9]/g, '')).filter(n => n.length >= 7).map(n => n + '@s.whatsapp.net');
+      const targets = args.map(a => clean(a)).filter(n => n.length >= 7).map(n => n + '@s.whatsapp.net');
       if (!targets.length) return reply('❌ Invalid number. Example: .add 2348071569915');
       try {
-        const res = await sock.groupParticipantsUpdate(from, targets, 'add');
+        await sock.groupParticipantsUpdate(from, targets, 'add');
         await reply(box('✅ ADDED', [`Tried to add ${targets.length} user(s)`, 'If e no enter, e fit be privacy setting']));
-      } catch { await reply('❌ Add failed - Bot must be admin, and number must not block group add'); }
+      } catch (e) { await reply('❌ Add failed - Bot must be admin, and number must not block group add'); }
     }
   },
-
-  // ========== PROMOTE ==========
   {
     command: ['promote', 'makeadmin'],
-    adminOnly: true,
-    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup }) => {
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
+    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup, groupMeta }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
-      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'promote')) return;
+      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'promote', groupMeta)) return;
       try {
-        await sock.groupParticipantsUpdate(from, [t], 'promote');
-        await reply(box('⬆️ PROMOTED', [`@${t.split('@')[0]} is now admin 👑`]), { mentions: [t] });
+        await sock.groupParticipantsUpdate(from, [realJid(groupMeta, t)], 'promote');
+        await reply(box('⬆️ PROMOTED', [`@${clean(t)} is now admin 👑`]), { mentions: [t] });
       } catch { await reply('❌ Promote failed - Bot must be admin'); }
     }
   },
-
-  // ========== DEMOTE ==========
   {
     command: ['demote', 'removeadmin'],
-    adminOnly: true,
-    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup }) => {
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
+    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup, groupMeta }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
-      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'demote')) return;
+      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'demote', groupMeta)) return;
       try {
-        await sock.groupParticipantsUpdate(from, [t], 'demote');
-        await reply(box('⬇️ DEMOTED', [`@${t.split('@')[0]} is no longer admin`]), { mentions: [t] });
+        await sock.groupParticipantsUpdate(from, [realJid(groupMeta, t)], 'demote');
+        await reply(box('⬇️ DEMOTED', [`@${clean(t)} is no longer admin`]), { mentions: [t] });
       } catch { await reply('❌ Demote failed - Bot must be admin'); }
     }
   },
-
-  // ========== WARN - REAL AUTO KICK AT 3 ==========
   {
     command: ['warn'],
-    adminOnly: true,
-    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup }) => {
+    adminOnly: true, groupOnly: true,
+    run: async ({ sock, from, m, args, reply, sender, botNumber, isGroup, groupMeta }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
-      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'warn')) return;
+      if (!await checkCanAct(sock, from, t, sender, botNumber, reply, 'warn', groupMeta)) return;
       const warns = getWarnings(from);
-      warns[t] = (warns[t] || 0) + 1;
+      const key = clean(t); // Use clean number as key so LID/number no double count
+      warns[key] = (warns[key] || 0) + 1;
       if (global.dbSave) global.dbSave();
-      const w = warns[t];
-      await reply(box('⚠️ WARNING', [`@${t.split('@')[0]} warned`, `Warnings: ${w}/3`, w >= 3 ? 'Reached 3 - Kicking...' : 'One more warning = Kick']), { mentions: [t] });
+      const w = warns[key];
+      await reply(box('⚠️ WARNING', [`@${key} warned`, `Warnings: ${w}/3`, w >= 3 ? 'Reached 3 - Kicking...' : 'One more warning = Kick']), { mentions: [t] });
       if (w >= 3) {
         try {
           await new Promise(r => setTimeout(r, 1000));
-          await sock.groupParticipantsUpdate(from, [t], 'remove');
-          warns[t] = 0;
+          await sock.groupParticipantsUpdate(from, [realJid(groupMeta, t)], 'remove');
+          warns[key] = 0;
           if (global.dbSave) global.dbSave();
-          await reply(`👢 @${t.split('@')[0]} kicked for reaching 3 warnings`, { mentions: [t] });
+          await reply(`👢 @${key} kicked for reaching 3 warnings`, { mentions: [t] });
         } catch { await reply('❌ Auto-kick failed - Bot must be admin'); }
       }
     }
   },
-
-  // ========== WARNINGS ==========
   {
     command: ['warnings', 'warns'],
-    adminOnly: true,
+    adminOnly: true, groupOnly: true,
     run: async ({ from, m, args, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
       if (!t) return reply('Mention user to check warnings');
-      const w = getWarnings(from)[t] || 0;
-      await reply(box('⚠️ WARNINGS', [`@${t.split('@')[0]} has ${w}/3 warnings`]), { mentions: [t] });
+      const w = getWarnings(from)[clean(t)] || 0;
+      await reply(box('⚠️ WARNINGS', [`@${clean(t)} has ${w}/3 warnings`]), { mentions: [t] });
     }
   },
-
-  // ========== RESET WARN ==========
   {
     command: ['resetwarn', 'unwarn', 'clearwarn'],
-    adminOnly: true,
+    adminOnly: true, groupOnly: true,
     run: async ({ from, m, args, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const t = getTarget(m, args);
       if (!t) return reply('Mention user');
-      getWarnings(from)[t] = 0;
+      getWarnings(from)[clean(t)] = 0;
       if (global.dbSave) global.dbSave();
-      await reply(box('✅ WARNING RESET', [`@${t.split('@')[0]} warnings cleared`]), { mentions: [t] });
+      await reply(box('✅ WARNING RESET', [`@${clean(t)} warnings cleared`]), { mentions: [t] });
     }
   },
-
-  // ========== MUTE / UNMUTE ==========
   {
     command: ['mute'],
-    adminOnly: true,
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
     run: async ({ sock, from, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
-      try {
-        await sock.groupSettingUpdate(from, 'announcement');
-        await reply(box('🔇 MUTED', ['Only admins can send message now']));
-      } catch { await reply('❌ Bot must be admin'); }
+      try { await sock.groupSettingUpdate(from, 'announcement'); await reply(box('🔇 MUTED', ['Only admins can send message now'])); }
+      catch { await reply('❌ Bot must be admin'); }
     }
   },
   {
     command: ['unmute'],
-    adminOnly: true,
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
     run: async ({ sock, from, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
-      try {
-        await sock.groupSettingUpdate(from, 'not_announcement');
-        await reply(box('🔊 UNMUTED', ['Everybody can send message now']));
-      } catch { await reply('❌ Bot must be admin'); }
+      try { await sock.groupSettingUpdate(from, 'not_announcement'); await reply(box('🔊 UNMUTED', ['Everybody can send message now'])); }
+      catch { await reply('❌ Bot must be admin'); }
     }
   },
-
-  // ========== DELETE - FIXED ==========
   {
     command: ['delete', 'del', 'd'],
-    adminOnly: true,
+    adminOnly: true, botAdminOnly: true, groupOnly: true,
     run: async ({ sock, from, m, reply, isGroup }) => {
       if (!onlyGroup(isGroup, reply)) return;
       const ctx = m.message.extendedTextMessage?.contextInfo;
       if (!ctx?.stanzaId) return reply('Reply to the message you want to delete with .delete');
       try {
-        await sock.sendMessage(from, {
-          delete: {
-            remoteJid: from,
-            fromMe: false,
-            id: ctx.stanzaId,
-            participant: ctx.participant
-          }
-        });
+        await sock.sendMessage(from, { delete: { remoteJid: from, fromMe: ctx.participant ? false : true, id: ctx.stanzaId, participant: ctx.participant } });
         await reply('🗑️ Deleted');
       } catch {
-        // Try second method - delete bot own message
-        try {
-          await sock.sendMessage(from, { delete: m.key });
-          await reply('🗑️ Deleted');
-        } catch { await reply('❌ Delete failed - Message too old or bot not admin'); }
+        try { await sock.sendMessage(from, { delete: m.key }); await reply('🗑️ Deleted'); }
+        catch { await reply('❌ Delete failed - Message too old or bot not admin'); }
       }
     }
   },
