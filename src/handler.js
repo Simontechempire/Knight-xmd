@@ -1,4 +1,4 @@
-// KNIGHT XMD - Main Handler - Connected to group.js + Multi-Owner
+// KNIGHT XMD - Main Handler - Connected to group.js + anti.js + Multi-Owner
 // Creator = controls ALL bots, no cap
 // Owner = person wey link THIS bot only
 const fs = require('fs');
@@ -51,6 +51,10 @@ function loadPlugins() {
 }
 loadPlugins();
 
+// ===== ANTI HANDLER INSIDE - CONNECTED =====
+let antiPlugin = null;
+try { antiPlugin = require('../plugins/anti'); } catch (e) { console.log('Anti plugin not loaded:', e.message); }
+
 const tiny = (t) => {
   const map = { a:'ᴀ', b:'ʙ', c:'ᴄ', d:'ᴅ', e:'ᴇ', f:'ꜰ', g:'ɢ', h:'ʜ', i:'ɪ', j:'ᴊ', k:'ᴋ', l:'ʟ', m:'ᴍ', n:'ɴ', o:'ᴏ', p:'ᴘ', q:'ǫ', r:'ʀ', s:'ꜱ', t:'ᴛ', u:'ᴜ', v:'ᴠ', w:'ᴡ', x:'x', y:'ʏ', z:'ᴢ', '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9' };
   return String(t).toLowerCase().split('').map(c => map[c] || c).join('');
@@ -83,12 +87,10 @@ async function handleMessage(sock, up, botNumber) {
   const sender = isGroup ? m.key.participant : from;
   if (!sender && !m.key.fromMe) return;
 
-  // FIX: botNum = person wey link THIS bot
   const botNum = cleanNum(botNumber || sock.user?.id || '');
   const botJid = sock.user ? cleanNum(sock.user.id) + '@s.whatsapp.net' : '';
   const sockUserRaw = sock.user?.id || '';
 
-  // FIX: If fromMe, sender na bot itself = Session Owner
   let senderNum = cleanNum(sender);
   if (m.key.fromMe) senderNum = botNum;
 
@@ -100,7 +102,6 @@ async function handleMessage(sock, up, botNumber) {
   const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== "";
   const isOwner = isCreator || isSessionOwner;
 
-  // If fromMe but no be owner (e.g status), ignore
   if (m.key.fromMe && !isOwner) return;
 
   const msg = m.message;
@@ -120,17 +121,14 @@ async function handleMessage(sock, up, botNumber) {
   if (isGroup) {
     try {
       groupMeta = await sock.groupMetadata(from);
-      // FIX: Check both LID + normal JID for sender
       const senderPart = groupMeta.participants.find(p => {
         if (cleanNum(p.id) === senderNum) return true;
         if (p.id === sender) return true;
-        // LID case: participant id fit be different but same person, check pn field if e dey
         if (p.pn && cleanNum(p.pn) === senderNum) return true;
         return false;
       });
       isAdmin = !!senderPart?.admin;
 
-      // FIX: Check bot admin with ALL possible forms - LID, pn, s.whatsapp.net, sock.user.id
       const botPart = groupMeta.participants.find(p => {
         if (cleanNum(p.id) === botNum) return true;
         if (p.id === sockUserRaw) return true;
@@ -143,46 +141,23 @@ async function handleMessage(sock, up, botNumber) {
     } catch {}
   }
 
-  // ANTI FEATURES
-  if (isGroup && !isOwner && !isAdmin) {
-    const gAnti = global.db.anti?.[from] || {};
-    const textLower = body.toLowerCase();
-    if (gAnti.antilink && /(https?:\/\/|wa\.me\/|chat\.whatsapp\.com|t\.me\/|instagram\.com)/i.test(body)) {
-      try {
-        await sock.sendMessage(from, { delete: m.key });
-        await sock.sendMessage(from, { text: box('⚠️ ANTI-LINK', [`@${senderNum} link not allowed`, 'Message deleted']), mentions: [sender] });
-      } catch {}
-      return;
-    }
-    const bad = ['fuck','shit','bitch','sex','porn','dick','pussy'];
-    if (gAnti.antibadword && bad.some(w => textLower.includes(w))) {
-      try { await sock.sendMessage(from, { delete: m.key }); await sock.sendMessage(from, { text: `🚫 Bad word deleted @${senderNum}`, mentions: [sender] }); } catch {}
-      return;
-    }
-    if (gAnti.antisticker && type === 'stickerMessage') {
-      try { await sock.sendMessage(from, { delete: m.key }); } catch {}
-      return;
-    }
-    if (gAnti.antifake) {
-      const allowed = gAnti.antifakeCodes || ['234'];
-      if (!allowed.some(p => senderNum.startsWith(p))) {
-        try { await sock.groupParticipantsUpdate(from, [sender], 'remove'); } catch {}
-        return;
-      }
-    }
-    if (gAnti.antispam) {
-      if (!global.spamMap) global.spamMap = {};
-      const key = from + sender;
-      const now = Date.now();
-      if (!global.spamMap[key]) global.spamMap[key] = [];
-      global.spamMap[key] = global.spamMap[key].filter(t => now - t < 10000);
-      global.spamMap[key].push(now);
-      if (global.spamMap[key].length > 5) {
-        try { await sock.sendMessage(from, { delete: m.key }); } catch {}
-        return;
-      }
-    }
+  // ===== ANTI HANDLER INSIDE - REPLACES OLD ANTI BLOCK =====
+  // 1. Cache every group message for antidelete
+  if (isGroup && antiPlugin?.cacheMessage) {
+    try { antiPlugin.cacheMessage(from, m, body, type); } catch {}
   }
+  // 2. Run all 10 anti - if blocked, stop here, don't run commands
+  if (isGroup && antiPlugin?.handleAnti) {
+    try {
+      const blocked = await antiPlugin.handleAnti(sock, m, {
+        from, sender: sender || botJid, senderNum,
+        isGroup, isOwner, isAdmin, isBotAdmin,
+        body, type, msg
+      });
+      if (blocked) return;
+    } catch (e) { console.log('Anti error', e.message); }
+  }
+  // ===== END ANTI HANDLER =====
 
   if (global.db.banned.includes(senderNum)) {
     if (!isOwner) {
@@ -230,23 +205,18 @@ async function handleMessage(sock, up, botNumber) {
   if (!plugin) return;
 
   // ========== MODE CHECK ==========
-  if (config.mode === 'private' && !isOwner) return; // silent
+  if (config.mode === 'private' && !isOwner) return;
   if (config.mode === 'self' && !isOwner) return;
 
   // ========== PERMISSION CHECK - CONNECTED TO group.js ==========
-  if (plugin.ownerOnly && !isOwner) return; // silent - Ada wey no link no get reply
-  if (plugin.creatorOnly && !isCreator) return; // silent
+  if (plugin.ownerOnly && !isOwner) return;
+  if (plugin.creatorOnly && !isCreator) return;
 
-  // GROUP CMD - e.g .tagall, .kick, .promote
-  // FIX: Separate adminOnly vs botAdminOnly
   if (plugin.adminOnly) {
     if (!isGroup) return;
-    if (!isAdmin && !isOwner) return; // silent - only group admin + owner/creator
-    // NO isBotAdmin check here! .tagall no need bot admin
+    if (!isAdmin && !isOwner) return;
   }
 
-  // BOT ADMIN ONLY - e.g .kick, .promote, .close, .grouplink, .setname
-  // Only these ones go check bot admin
   if (plugin.botAdminOnly && !isBotAdmin) {
     return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
   }
@@ -284,4 +254,19 @@ async function handleMessage(sock, up, botNumber) {
   }
 }
 
-module.exports = { handleMessage, loadPlugins, plugins: () => plugins };
+// ===== ANTI-DELETE LISTENER - for connection.js =====
+// Call this from connection.js after sock is created: setupAntiDelete(sock)
+function setupAntiDelete(sock) {
+  try {
+    sock.ev.on('messages.update', async (updates) => {
+      try {
+        if (!antiPlugin?.handleDelete) return;
+        for (const u of updates) {
+          if (u.update?.message === null) await antiPlugin.handleDelete(sock, u);
+        }
+      } catch {}
+    });
+  } catch {}
+}
+
+module.exports = { handleMessage, loadPlugins, setupAntiDelete, plugins: () => plugins, antiPlugin };
