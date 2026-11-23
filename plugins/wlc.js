@@ -21,6 +21,14 @@ function setChat(jid, data) {
   return db[jid]
 }
 
+const clean = (jid) => String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
+const displayNum = (p) => {
+  if (!p) return ''
+  if (typeof p === 'string') return clean(p)
+  if (p.pn) return clean(p.pn)
+  return clean(p.id)
+}
+
 function welcomeText(user, groupName, count) {
   return `╭━━━〔 ✨ NEW MEMBER ALERT 〕━━━╮\n\n   🦋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐓𝐇𝐄 𝐅𝐀𝐌𝐈𝐋𝐘 🦋\n\n  ┏━━━━━━━━━━━━━━━━━━┓\n    👤 𝐍𝐚𝐦𝐞: @${user}\n    🌸 𝐆𝐫𝐨𝐮𝐩: ${groupName}\n    💌 𝐌𝐞𝐦𝐛𝐞𝐫: ${count}\n  ┗━━━━━━━━━━━━━━━━━━┛\n\n  🎉 A fresh face, a new vibe!\n  💫 We're glad to have you here.\n\n  📌 Read the group rules.\n  🤝 Respect every member.\n  💬 Stay active and have fun.\n\n  ❤️ MAKE YOURSELF AT HOME!\n\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯`
 }
@@ -47,14 +55,16 @@ function attachEngine(sock) {
 
       let groupName = 'Group'
       let count = 0
+      let meta = null
       try {
-        const meta = await sock.groupMetadata(jid)
+        meta = await sock.groupMetadata(jid)
         groupName = meta.subject || 'Group'
         count = meta.participants?.length || 0
       } catch {}
 
       for (const p of update.participants || []) {
-        const num = String(p).split('@')[0].split(':')[0]
+        const part = meta?.participants?.find(x => x.id === p || clean(x.id) === clean(p) || (x.pn && clean(x.pn) === clean(p)))
+        const num = part ? displayNum(part) : clean(p)
         let pp = null
         try { pp = await sock.profilePictureUrl(p, 'image') } catch {}
 
@@ -98,12 +108,13 @@ module.exports = {
     let isAdmin = false
     try {
       const meta = await sock.groupMetadata(jid)
-      const sender = m.key.participant || jid
-      const base = String(sender).split(':')[0].split('@')[0]
-      const p = meta.participants.find(x => String(x.id).split(':')[0].split('@')[0] === base || String(x.lid || '').split(':')[0].split('@')[0] === base)
+      const sender = m.key.participant || m.key.remoteJid
+      const base = clean(sender)
+      const p = meta.participants.find(x => clean(x.id) === base || (x.pn && clean(x.pn) === base) || (x.lid && clean(x.lid) === base))
       isAdmin = !!(p?.admin === 'admin' || p?.admin === 'superadmin')
     } catch {}
-    const isOwner = String(m.key.participant || jid).split(':')[0].split('@')[0] === '239166265317'
+    const ownerNum = (require('../config').ownerNumber || '').replace(/[^0-9]/g, '')
+    const isOwner = clean(m.key.participant || '') === ownerNum || clean(m.key.remoteJid) === ownerNum
     if (!isAdmin && !isOwner) { await reply('❌ Only admin can use this'); return }
 
     const cfg = getChat(jid)
@@ -126,4 +137,4 @@ module.exports = {
       return reply('Usage: .gcgoodbye on / off')
     }
   }
-    }
+  }
