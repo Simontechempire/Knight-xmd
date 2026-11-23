@@ -1,7 +1,7 @@
-// KNIGHT XMD - Config - Fixed for Render
-// By Faceless Tech
-// FIXED: dotenv is optional - if e no dey installed, bot no go crash
-try { require('dotenv').config(); } catch { /* dotenv not installed, use process.env from Render */ }
+// KNIGHT XMD - Config - Fixed for Render - Multi-Owner
+// Creator = controls ALL bots, no cap
+// Owner = person wey link THIS bot (no dey for config, e dey come from connection.js)
+try { require('dotenv').config(); } catch {}
 
 module.exports = {
   botName: process.env.BOT_NAME || "Knight XMD",
@@ -22,7 +22,10 @@ module.exports = {
   autoViewStatus: process.env.AUTO_VIEW_STATUS === 'true' || false,
   autoBio: process.env.AUTO_BIO === 'true' || false,
   autoLikeStatus: process.env.AUTO_LIKE_STATUS === 'true' || false,
-  ownerNumber: (process.env.CREATOR_NUMBER || "2348071569915").replace(/[^0-9]/g, ''),
+  // FIX: ownerNumber REMOVED - no be static
+  // If any old plugin still use config.ownerNumber, e go be undefined and fail
+  // So we keep am as alias to creator for backward compat, but handler NO go use am
+  // ownerNumber: DO NOT USE - use ctx.isOwner instead
   sessionName: process.env.SESSION_NAME || "Knight XMD",
   publicUrl: process.env.PUBLIC_URL || "",
 };
