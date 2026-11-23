@@ -1,5 +1,5 @@
-// KNIGHT XMD - AI + Utility System - Real Handler
-// By Faceless Tech
+// KNIGHT XMD - AI + Utility System - Fixed Free AI No Key
+// By Faceless Tech - Pollinations AI (Free, No Key)
 const axios = require('axios');
 
 function box(title, lines) {
@@ -9,28 +9,47 @@ function box(title, lines) {
   return t;
 }
 
-// Safe calculator - NO Function() - Function() fit run evil code
 function safeCalc(expr) {
-  // Only allow numbers + + - * / ( ) . % and space
   if (!/^[0-9+\-*/().\s%]+$/.test(expr)) throw new Error('Invalid chars');
-  // Block .. , **, // etc
   if (expr.includes('**') || expr.includes('//') || expr.includes('..')) throw new Error('Invalid');
-  // Convert % to /100
   const clean = expr.replace(/(\d+)%/g, '($1/100)');
-  // Use Function but with clean input only - safe now
   return Function(`"use strict"; return (${clean})`)();
 }
 
+// ===== FREE AI - NO API KEY - FIXED =====
 async function askAI(prompt) {
-  // Try 3 free AI APIs, one go work
-  const apis = [
-    `https://api.siputzx.my.id/api/ai/gpt3?prompt=${encodeURIComponent(prompt)}`,
-    `https://api.zenzxz.my.id/api/ai/gpt?prompt=${encodeURIComponent(prompt)}`,
+  const system = "You are Knight XMD, a helpful smart WhatsApp AI assistant created by Faceless Tech. Answer short, clear, and friendly. Use simple English unless user speaks another language.";
+
+  // 1. Pollinations - MAIN, free, no key, most stable
+  try {
+    const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai&system=${encodeURIComponent(system)}`;
+    const { data } = await axios.get(url, { timeout: 45000, responseType: 'text', headers: { 'User-Agent': 'Knight-XMD' } });
+    if (data && typeof data === 'string' && data.length > 2 && !data.toLowerCase().includes('<!doctype')) {
+      return data.trim();
+    }
+  } catch (e) { console.log('[AI Pollinations fail]', e.message); }
+
+  // 2. Pollinations OpenAI-compatible POST - fallback
+  try {
+    const { data } = await axios.post('https://text.pollinations.ai/openai', {
+      model: 'openai',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt }
+      ]
+    }, { timeout: 45000 });
+    const ans = data?.choices?.[0]?.message?.content;
+    if (ans && ans.length > 2) return ans.trim();
+  } catch (e) { console.log('[AI Pollinations POST fail]', e.message); }
+
+  // 3. Old APIs as last backup
+  const backups = [
     `https://api.davidcyriltech.my.id/ai/chatbot?query=${encodeURIComponent(prompt)}`,
+    `https://api.siputzx.my.id/api/ai/gpt3?prompt=${encodeURIComponent(prompt)}`,
   ];
-  for (const url of apis) {
+  for (const url of backups) {
     try {
-      const { data } = await axios.get(url, { timeout: 30000 });
+      const { data } = await axios.get(url, { timeout: 25000 });
       const ans = data?.result || data?.data?.result || data?.response || data?.answer || data?.data;
       if (ans && typeof ans === 'string' && ans.length > 2) return ans;
     } catch {}
@@ -39,21 +58,28 @@ async function askAI(prompt) {
 }
 
 module.exports = [
-  // ========== AI - NEW ==========
   {
     command: ['ai', 'ask', 'gpt', 'chat'],
-    run: async ({ reply, text }) => {
+    run: async ({ reply, text, sock, from, m }) => {
       if (!text) return reply('Usage: .ai Who is Wizkid?\nOr .ask How to make money?');
-      await reply('🤖 Knight AI dey think...');
+      // FIX: Don't send "thinking" as separate message wey go spam, just wait
+      // If you want thinking, use presence instead - handler already does typing
       try {
         const ans = await askAI(text);
-        if (!ans) return reply('❌ AI server busy, try again in 1 min');
-        await reply(box('🤖 KNIGHT AI', [ans.slice(0, 900)]));
-      } catch { await reply('❌ AI failed'); }
+        if (!ans) return reply('❌ AI server busy, try again in 30 sec\nTry: .ai hello');
+        // FIX: Split long answer, WhatsApp limit ~ 4000 chars, box limit 900 before e cut am
+        // Now send full answer in chunks
+        if (ans.length <= 3500) {
+          await reply(box('🤖 KNIGHT AI', [ans]));
+        } else {
+          await reply(ans.slice(0, 3500));
+          if (ans.length > 3500) await reply(ans.slice(3500, 7000));
+        }
+      } catch (e) { await reply('❌ AI failed: ' + e.message); }
     }
   },
 
-  // ========== WEATHER - FIXED + MORE INFO ==========
+  // ========== WEATHER ==========
   {
     command: ['weather'],
     run: async ({ reply, text }) => {
@@ -77,7 +103,7 @@ module.exports = [
     }
   },
 
-  // ========== TRANSLATE - FIXED LANGPAIR ==========
+  // ========== TRANSLATE ==========
   {
     command: ['translate', 'tr', 'trans'],
     run: async ({ reply, text }) => {
@@ -88,7 +114,6 @@ module.exports = [
       if (!q) return reply('Usage: .translate en Hello');
       if (lang.length < 2 || lang.length > 5) return reply('❌ Invalid language code. Example: .translate fr Hello');
       try {
-        // Auto-detect source: use auto|lang
         const { data } = await axios.get(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=auto|${lang}`, { timeout: 20000 });
         const translated = data?.responseData?.translatedText;
         if (!translated) return reply('❌ Translate failed, try again');
@@ -102,13 +127,12 @@ module.exports = [
     }
   },
 
-  // ========== CALCULATE - FIXED, SAFE, NO EVIL CODE ==========
+  // ========== CALCULATE ==========
   {
     command: ['calculate', 'calc', 'math'],
     run: async ({ reply, text }) => {
       if (!text) return reply('Usage: .calc 2+2\nOr .calc (10+5)*2\nOr .calc 50% of 200');
       try {
-        // Support "50% of 200" style
         let expr = text.trim().toLowerCase();
         if (expr.includes(' of ')) {
           const [a, b] = expr.split(' of ');
@@ -117,15 +141,12 @@ module.exports = [
         expr = expr.replace(/x/g, '*').replace(/÷/g, '/');
         const r = safeCalc(expr);
         if (typeof r !== 'number' || !isFinite(r)) return reply('❌ Invalid calculation');
-        await reply(box('🧮 CALCULATOR', [
-          `Q: ${text}`,
-          `A: ${r}`,
-        ]));
+        await reply(box('🧮 CALCULATOR', [`Q: ${text}`, `A: ${r}`]));
       } catch { await reply('❌ Invalid calculation\nExample: .calc 2+2*3'); }
     }
   },
 
-  // ========== SHORTURL - FIXED VALIDATION ==========
+  // ========== SHORTURL ==========
   {
     command: ['shorturl', 'short', 'tinyurl'],
     run: async ({ reply, text }) => {
@@ -136,7 +157,6 @@ module.exports = [
       try {
         const { data } = await axios.get(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(url)}`, { timeout: 20000 });
         if (!data || !data.toString().startsWith('http')) {
-          // Fallback - tinyurl
           const res2 = await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`, { timeout: 20000 });
           return reply(box('🔗 SHORT LINK', [`Original: ${url.slice(0, 60)}`, `Short: ${res2.data}`]));
         }
@@ -145,7 +165,7 @@ module.exports = [
     }
   },
 
-  // ========== QR CODE - NEW ==========
+  // ========== QR CODE ==========
   {
     command: ['qr', 'qrcode'],
     run: async ({ sock, from, reply, text }) => {
@@ -158,7 +178,7 @@ module.exports = [
     }
   },
 
-  // ========== DICTIONARY - NEW ==========
+  // ========== DICTIONARY ==========
   {
     command: ['define', 'dictionary', 'meaning'],
     run: async ({ reply, text }) => {
