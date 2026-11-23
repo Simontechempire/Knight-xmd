@@ -1,10 +1,10 @@
-// KNIGHT XMD - Main Handler - Fixed + Connects ALL Plugins
-// By Faceless Tech
+// KNIGHT XMD - Main Handler - Fixed Multi-Owner
+// Creator = controls ALL bots, no cap
+// Owner = person wey link THIS bot only
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 
-// ========== GLOBAL DB + SAVE ==========
 if (!global.db) global.db = {};
 if (!global.db.banned) global.db.banned = [];
 if (!global.db.warnings) global.db.warnings = {};
@@ -22,7 +22,6 @@ function loadDB() {
       if (!global.db.warnings) global.db.warnings = {};
       if (!global.db.settings) global.db.settings = {};
       if (!global.db.anti) global.db.anti = {};
-      // Apply saved settings - restart no go reset mode/prefix
       if (global.db.settings.mode) config.mode = global.db.settings.mode;
       if (global.db.settings.prefix) config.prefix = global.db.settings.prefix;
       if (global.db.settings.language) config.language = global.db.settings.language;
@@ -35,7 +34,6 @@ function saveDB() {
 global.dbSave = saveDB;
 loadDB();
 
-// ========== LOAD PLUGINS ==========
 let plugins = [];
 function loadPlugins() {
   plugins = [];
@@ -53,7 +51,6 @@ function loadPlugins() {
 }
 loadPlugins();
 
-// ========== HELPERS ==========
 const tiny = (t) => {
   const map = { a:'ᴀ', b:'ʙ', c:'ᴄ', d:'ᴅ', e:'ᴇ', f:'ꜰ', g:'ɢ', h:'ʜ', i:'ɪ', j:'ᴊ', k:'ᴋ', l:'ʟ', m:'ᴍ', n:'ɴ', o:'ᴏ', p:'ᴘ', q:'ǫ', r:'ʀ', s:'ꜱ', t:'ᴛ', u:'ᴜ', v:'ᴠ', w:'ᴡ', x:'x', y:'ʏ', z:'ᴢ', '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9' };
   return String(t).toLowerCase().split('').map(c => map[c] || c).join('');
@@ -75,55 +72,65 @@ function box(title, lines) {
   return t;
 }
 
+// FIX: clean number - remove :xx LID part
+const cleanNum = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+
 async function handleMessage(sock, up, botNumber) {
   const m = up.messages[0];
   if (!m.message) return;
-  if (m.key.fromMe) return; // FIXED: no reply to self, else loop
 
   const from = m.key.remoteJid;
   const isGroup = from.endsWith('@g.us');
   const sender = isGroup ? m.key.participant : from;
   if (!sender) return;
-  const senderNum = sender.split('@')[0];
-  const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-  const botNum = botNumber || sock.user.id.split(':')[0];
+  const senderNum = cleanNum(sender);
 
-  // FIXED: Owner = bot number OR creator number. Before, only bot number was owner, creator fit get blocked.
-  const isOwner = senderNum === botNum || senderNum === config.creatorNumber;
-  const isCreator = senderNum === config.creatorNumber;
+  // FIX: botNum = person wey link THIS bot (Session Owner)
+  // botNumber dey come from connection.js as clean number, e.g "2349012345678" for David
+  const botNum = cleanNum(botNumber || sock.user?.id || '');
+  const botJid = sock.user ? cleanNum(sock.user.id) + '@s.whatsapp.net' : '';
 
-  // Body - FIXED: also handle viewOnce, sticker caption etc
+  // ===== OWNER LOGIC - THE MAIN FIX =====
+  const CREATOR = cleanNum(config.creatorNumber || config.creator || "2348071569915");
+  const SESSION_OWNER = botNum; // David if David link, Ada if Ada link
+
+  const isCreator = senderNum === CREATOR; // You - control ALL bots, no cap
+  const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== ""; // Linker only for THIS bot
+  const isOwner = isCreator || isSessionOwner;
+
+  // FIX: Don't block fromMe completely.
+  // If message na from bot itself (owner dey use bot number to send command), allow am if na owner/creator
+  // If na from other person, fromMe go be false anyway
+  const isSelfMsg = !!m.key.fromMe;
+  if (isSelfMsg && !isOwner && senderNum !== botNum) return; // ignore bot own status etc
+  // If isSelfMsg but sender is botNum, we continue - na owner dey use am
+
   const msg = m.message;
   const type = Object.keys(msg)[0];
   const body = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.viewOnceMessageV2?.message?.imageMessage?.caption || msg.viewOnceMessageV2?.message?.videoMessage?.caption || '';
   const quoted = msg.extendedTextMessage?.contextInfo?.quotedMessage;
 
-  // Auto Read / Typing
   try {
     if (global.db.settings?.autoRead) await sock.readMessages([m.key]);
     if (global.db.settings?.autoTyping && body.startsWith(config.prefix)) await sock.sendPresenceUpdate('composing', from);
     if (global.db.settings?.autoRecording && body.startsWith(config.prefix)) await sock.sendPresenceUpdate('recording', from);
   } catch {}
 
-  // ========== GROUP METADATA - FETCH ONCE, REUSE ==========
   let groupMeta = null;
   let isAdmin = false;
   let isBotAdmin = false;
   if (isGroup) {
     try {
       groupMeta = await sock.groupMetadata(from);
-      isAdmin = !!groupMeta.participants.find(p => p.id === sender)?.admin;
-      // FIXED: Before isBotAdmin was always true. Now real check.
-      isBotAdmin = !!groupMeta.participants.find(p => p.id === botJid || p.id.split('@')[0] === botNum)?.admin;
+      isAdmin = !!groupMeta.participants.find(p => cleanNum(p.id) === senderNum)?.admin;
+      isBotAdmin = !!groupMeta.participants.find(p => cleanNum(p.id) === botNum)?.admin;
     } catch {}
   }
 
-  // ========== ANTI FEATURES - BEFORE COMMAND ==========
-  if (isGroup && !isOwner && !isCreator && !isAdmin) {
+  // ANTI FEATURES - Owner/Creator/Admin bypass
+  if (isGroup && !isOwner && !isAdmin) {
     const gAnti = global.db.anti?.[from] || {};
     const textLower = body.toLowerCase();
-
-    // AntiLink - FIXED: allow admin + owner, allow bot own messages
     if (gAnti.antilink && /(https?:\/\/|wa\.me\/|chat\.whatsapp\.com|t\.me\/|instagram\.com)/i.test(body)) {
       try {
         await sock.sendMessage(from, { delete: m.key });
@@ -131,21 +138,15 @@ async function handleMessage(sock, up, botNumber) {
       } catch {}
       return;
     }
-    // AntiBadword
     const bad = ['fuck','shit','bitch','sex','porn','dick','pussy'];
     if (gAnti.antibadword && bad.some(w => textLower.includes(w))) {
-      try {
-        await sock.sendMessage(from, { delete: m.key });
-        await sock.sendMessage(from, { text: `🚫 Bad word deleted @${senderNum}`, mentions: [sender] });
-      } catch {}
+      try { await sock.sendMessage(from, { delete: m.key }); await sock.sendMessage(from, { text: `🚫 Bad word deleted @${senderNum}`, mentions: [sender] }); } catch {}
       return;
     }
-    // AntiSticker
     if (gAnti.antisticker && type === 'stickerMessage') {
       try { await sock.sendMessage(from, { delete: m.key }); } catch {}
       return;
     }
-    // AntiFake - FIXED: before e go kick everybody wey no be 234, even if group no set am well. Now check if anti ON + allow list from DB
     if (gAnti.antifake) {
       const allowed = gAnti.antifakeCodes || ['234'];
       if (!allowed.some(p => senderNum.startsWith(p))) {
@@ -153,7 +154,6 @@ async function handleMessage(sock, up, botNumber) {
         return;
       }
     }
-    // AntiSpam - NEW: 5 messages in 10 sec = warn
     if (gAnti.antispam) {
       if (!global.spamMap) global.spamMap = {};
       const key = from + sender;
@@ -168,20 +168,16 @@ async function handleMessage(sock, up, botNumber) {
     }
   }
 
-  // ========== BANNED CHECK - NEW, BEFORE COMMAND ==========
   if (global.db.banned.includes(senderNum)) {
-    // Owner/Creator can never be banned
     if (!isOwner) {
       if (body.startsWith(config.prefix)) {
-        await sock.sendMessage(from, { text: '🚫 You are banned from using Knight XMD.\nContact owner: wa.me/' + config.creatorNumber }, { quoted: m });
+        await sock.sendMessage(from, { text: '🚫 You are banned from using Knight XMD.\nContact owner: wa.me/' + CREATOR }, { quoted: m });
       }
       return;
     }
   }
 
-  // ========== MUST START WITH PREFIX ==========
   if (!body.startsWith(config.prefix)) {
-    // AutoReply - FIXED: before e dey reply every DM message, even Hi. Now only once per 30s to avoid spam loop
     if (global.db.settings?.autoReply && !isGroup) {
       const last = global.lastAutoReply?.[from] || 0;
       if (Date.now() - last > 30000) {
@@ -190,7 +186,6 @@ async function handleMessage(sock, up, botNumber) {
         await sock.sendMessage(from, { text: `👋 Hi! I am Knight XMD. Type ${config.prefix}menu for commands.` });
       }
     }
-    // AutoSticker - FIXED: actually do am, before e do nothing
     if (global.db.settings?.autoSticker && (type === 'imageMessage' || type === 'videoMessage')) {
       try {
         const { Sticker, StickerTypes } = require('wa-sticker-formatter');
@@ -211,7 +206,6 @@ async function handleMessage(sock, up, botNumber) {
   const cmdName = args.shift().toLowerCase();
   const text = args.join(' ');
 
-  // Find plugin - FIXED: support string command too, not only array
   const plugin = plugins.find(p => {
     if (!p.command) return false;
     if (Array.isArray(p.command)) return p.command.includes(cmdName);
@@ -219,53 +213,62 @@ async function handleMessage(sock, up, botNumber) {
   });
   if (!plugin) return;
 
-  // ========== MODE CHECK - NEW ==========
-  if (config.mode === 'private' && !isOwner && !plugin.ownerOnly) {
-    return sock.sendMessage(from, { text: '🔒 Bot is in PRIVATE mode - Only owner can use it.' }, { quoted: m });
+  // ========== MODE CHECK - FIXED ==========
+  // private = only Owner/Creator for OWNER cmds, but GROUP cmds still work for group members? 
+  // If you want private to block everything, keep this. If you want group cmds to work in private, comment am.
+  if (config.mode === 'private' && !isOwner) {
+    // FIX: silent ignore, no "you are not my owner" reply
+    // Ada wey no link no get right to get reply
+    return;
   }
-  if (config.mode === 'self' && senderNum !== botNum) {
-    return sock.sendMessage(from, { text: '👤 Bot is in SELF mode - Only bot number can use it.' }, { quoted: m });
-  }
+  if (config.mode === 'self' && !isOwner) return; // self = only bot owner + creator
 
-  // Permission check
-  if (plugin.ownerOnly && !isOwner && !isCreator) return sock.sendMessage(from, { text: `❌ Only owner can use this.` }, { quoted: m });
-  if (plugin.creatorOnly && !isCreator) return sock.sendMessage(from, { text: `❌ Only Creator (Faceless Tech) can use this.` }, { quoted: m });
+  // ========== PERMISSION CHECK - FIXED SILENT ==========
+  // OWNER CMD: e.g .mode, .ban, .restart
+  if (plugin.ownerOnly && !isOwner) return; // SILENT - no reply, Ada no get right
+
+  // CREATOR ONLY: e.g .broadcast-all, .shutdown-all
+  // Only YOU, even Session Owner no fit
+  if (plugin.creatorOnly && !isCreator) return; // SILENT
+
+  // ADMIN / GROUP CMD: e.g .kick, .tagall, .promote
   if (plugin.adminOnly) {
-    if (!isGroup) return sock.sendMessage(from, { text: `❌ This command only works in a group.` }, { quoted: m });
-    if (!isAdmin && !isOwner) return sock.sendMessage(from, { text: `❌ Admin only.` }, { quoted: m });
-    // FIXED: Tell user if bot no be admin, before plugin try and fail with ugly error
-    if (!isBotAdmin) return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
+    if (!isGroup) return; // silent, no reply
+    // Owner/Creator bypass admin check - they fit use group cmd even if no be admin
+    if (!isAdmin && !isOwner) return; // silent
+    if (!isBotAdmin) {
+      // This one we reply because na real user wey need help, no be owner check
+      return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
+    }
   }
 
-  // ========== CTX - CONNECTS ALL PLUGINS ==========
+  // GROUP CMD: e.g .tagall if plugin.groupOnly = true
+  if (plugin.groupOnly && !isGroup) return;
+
   const ctx = {
     sock, m, from, sender, senderNum,
     botNumber: botNum, botJid,
-    isGroup, isOwner, isCreator,
-    isAdmin, isBotAdmin, // NEW - moderator/group need am
-    groupMetadata: groupMeta, // NEW - group.js need am
+    isGroup, isOwner, isCreator, isSessionOwner,
+    isAdmin, isBotAdmin,
+    groupMetadata: groupMeta,
     groupMeta,
     args, text, body, quoted, type,
     tiny, config, prefix: config.prefix,
-    command: cmdName, // NEW - fun.js .howfine etc need am
-    runtime: formatRuntime, // NEW - owner.js .alive/.runtime need am
-    box, // NEW - all plugins fit use box()
-    // FIXED: reply now support mentions + any opts, and replyImage fallback if PFP die
+    command: cmdName,
+    runtime: formatRuntime,
+    box,
     reply: async (txt, opts = {}) => {
       if (typeof txt !== 'string') txt = String(txt);
       return sock.sendMessage(from, { text: txt, mentions: opts.mentions || [] }, { quoted: m });
     },
     replyImage: async (url, caption) => {
-      try {
-        return sock.sendMessage(from, { image: { url }, caption }, { quoted: m });
-      } catch {
-        return sock.sendMessage(from, { text: caption }, { quoted: m });
-      }
+      try { return sock.sendMessage(from, { image: { url }, caption }, { quoted: m }); }
+      catch { return sock.sendMessage(from, { text: caption }, { quoted: m }); }
     }
   };
 
   try {
-    console.log(`[CMD] ${senderNum} -> ${config.prefix}${cmdName} ${text.slice(0, 30)}`);
+    console.log(`[CMD] ${senderNum} -> ${config.prefix}${cmdName} | Owner:${isOwner} Creator:${isCreator} SessionOwner:${isSessionOwner} Bot:${botNum}`);
     await plugin.run(ctx);
   } catch (e) {
     console.log('CMD error', cmdName, e.message);
