@@ -1,4 +1,4 @@
-// KNIGHT XMD - Main Handler - Connected to group.js + anti.js + Multi-Owner
+// KNIGHT XMD - Main Handler - Connected to group.js + anti.js + auto.js + Multi-Owner
 // Creator = controls ALL bots, no cap
 // Owner = person wey link THIS bot only
 const fs = require('fs');
@@ -51,9 +51,11 @@ function loadPlugins() {
 }
 loadPlugins();
 
-// ===== ANTI HANDLER INSIDE - CONNECTED =====
+// ===== ANTI + AUTO HANDLER INSIDE - CONNECTED =====
 let antiPlugin = null;
 try { antiPlugin = require('../plugins/anti'); } catch (e) { console.log('Anti plugin not loaded:', e.message); }
+let autoPlugin = null;
+try { autoPlugin = require('../plugins/auto'); } catch (e) { console.log('Auto plugin not loaded:', e.message); }
 
 const tiny = (t) => {
   const map = { a:'ᴀ', b:'ʙ', c:'ᴄ', d:'ᴅ', e:'ᴇ', f:'ꜰ', g:'ɢ', h:'ʜ', i:'ɪ', j:'ᴊ', k:'ᴋ', l:'ʟ', m:'ᴍ', n:'ɴ', o:'ᴏ', p:'ᴘ', q:'ǫ', r:'ʀ', s:'ꜱ', t:'ᴛ', u:'ᴜ', v:'ᴠ', w:'ᴡ', x:'x', y:'ʏ', z:'ᴢ', '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9' };
@@ -109,11 +111,11 @@ async function handleMessage(sock, up, botNumber) {
   const body = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.viewOnceMessageV2?.message?.imageMessage?.caption || msg.viewOnceMessageV2?.message?.videoMessage?.caption || '';
   const quoted = msg.extendedTextMessage?.contextInfo?.quotedMessage;
 
-  try {
-    if (global.db.settings?.autoRead) await sock.readMessages([m.key]);
-    if (global.db.settings?.autoTyping && body.startsWith(config.prefix)) await sock.sendPresenceUpdate('composing', from);
-    if (global.db.settings?.autoRecording && body.startsWith(config.prefix)) await sock.sendPresenceUpdate('recording', from);
-  } catch {}
+  // ===== AUTO HANDLER INSIDE - REPLACES OLD autoRead/autoTyping/autoRecording BLOCK =====
+  // This one handle: autoRead, autoTyping, autoRecording, autoOnline, autoReact, autoReply, autoSticker
+  if (autoPlugin?.handleAuto) {
+    try { await autoPlugin.handleAuto(sock, m, { from, body, type, msg, isGroup, prefix: config.prefix }); } catch (e) { console.log('Auto error', e.message); }
+  }
 
   let groupMeta = null;
   let isAdmin = false;
@@ -141,12 +143,10 @@ async function handleMessage(sock, up, botNumber) {
     } catch {}
   }
 
-  // ===== ANTI HANDLER INSIDE - REPLACES OLD ANTI BLOCK =====
-  // 1. Cache every group message for antidelete
+  // ===== ANTI HANDLER INSIDE =====
   if (isGroup && antiPlugin?.cacheMessage) {
     try { antiPlugin.cacheMessage(from, m, body, type); } catch {}
   }
-  // 2. Run all 10 anti - if blocked, stop here, don't run commands
   if (isGroup && antiPlugin?.handleAnti) {
     try {
       const blocked = await antiPlugin.handleAnti(sock, m, {
@@ -168,30 +168,8 @@ async function handleMessage(sock, up, botNumber) {
     }
   }
 
-  if (!body.startsWith(config.prefix)) {
-    if (global.db.settings?.autoReply && !isGroup) {
-      const last = global.lastAutoReply?.[from] || 0;
-      if (Date.now() - last > 30000) {
-        if (!global.lastAutoReply) global.lastAutoReply = {};
-        global.lastAutoReply[from] = Date.now();
-        await sock.sendMessage(from, { text: `👋 Hi! I am Knight XMD. Type ${config.prefix}menu for commands.` });
-      }
-    }
-    if (global.db.settings?.autoSticker && (type === 'imageMessage' || type === 'videoMessage')) {
-      try {
-        const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-        const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-        const media = msg.imageMessage || msg.videoMessage;
-        const mType = msg.imageMessage ? 'image' : 'video';
-        if (mType === 'video' && media.seconds > 10) return;
-        const stream = await downloadContentFromMessage(media, mType);
-        let buf = Buffer.from([]); for await (const c of stream) buf = Buffer.concat([buf, c]);
-        const st = new Sticker(buf, { pack: 'Knight XMD', author: 'Faceless Tech', type: StickerTypes.FULL, quality: 70 });
-        await sock.sendMessage(from, await st.toMessage(), { quoted: m });
-      } catch {}
-    }
-    return;
-  }
+  // If no be command, stop here - autoReply + autoSticker don already run for handleAuto above
+  if (!body.startsWith(config.prefix)) return;
 
   const args = body.slice(config.prefix.length).trim().split(/\s+/);
   const cmdName = args.shift().toLowerCase();
@@ -254,8 +232,7 @@ async function handleMessage(sock, up, botNumber) {
   }
 }
 
-// ===== ANTI-DELETE LISTENER - for connection.js =====
-// Call this from connection.js after sock is created: setupAntiDelete(sock)
+// ===== ANTI-DELETE + AUTO-STATUS LISTENER - for connection.js =====
 function setupAntiDelete(sock) {
   try {
     sock.ev.on('messages.update', async (updates) => {
@@ -269,4 +246,16 @@ function setupAntiDelete(sock) {
   } catch {}
 }
 
-module.exports = { handleMessage, loadPlugins, setupAntiDelete, plugins: () => plugins, antiPlugin };
+function setupAuto(sock) {
+  try {
+    if (autoPlugin?.restoreAuto) autoPlugin.restoreAuto(sock);
+  } catch {}
+}
+
+// One call for connection.js - setup both
+function setupHandlers(sock) {
+  setupAntiDelete(sock);
+  setupAuto(sock);
+}
+
+module.exports = { handleMessage, loadPlugins, setupAntiDelete, setupAuto, setupHandlers, plugins: () => plugins, antiPlugin, autoPlugin };
