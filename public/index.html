@@ -1,168 +1,138 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Knight XMD - Pairing Dashboard</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>⚔️ KNIGHT XMD — Royal Pairing</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;background:#050508;color:#fff;font-family:Arial,sans-serif}
-.box{max-width:420px;margin:30px auto;padding:20px;background:#111118;border-radius:20px;border:1px solid #2a2a3a;text-align:center}
-img{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #00ff88}
-input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;font-size:16px;background:#22222e;color:#fff;outline:none}
-input:focus{border:1px solid #00ff88}
-button{width:100%;padding:14px;border-radius:12px;border:none;background:#00ff88;font-weight:900;font-size:16px;cursor:pointer;color:#000}
-button:disabled{background:#555;color:#aaa;cursor:not-allowed}
-button.secondary{background:#22222e;color:#00ff88;border:1px solid #00ff88}
-.code{font-size:32px;letter-spacing:4px;background:#000;padding:14px;border-radius:12px;margin:14px 0;display:none;font-weight:900;color:#00ff88}
-.note{font-size:13px;opacity:.7;line-height:1.5}
-.status{margin:10px 0;padding:10px;border-radius:10px;font-size:13px;display:none}
-.status.online{background:#003d1f;color:#00ff88;display:block}
-.status.waiting{background:#3d2a00;color:#ffcc00;display:block}
-.steps{text-align:left;font-size:13px;opacity:.8;line-height:1.8;margin:12px 0;background:#0a0a12;padding:12px;border-radius:12px}
-.row{display:flex;gap:8px;margin-top:10px}
-.row button{flex:1}
-.footer{font-size:11px;opacity:.5;margin-top:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#FFD700;--gold2:#FF9D00;--neon:#00FF88;--neon2:#00E5FF;--bg:#030308;--card:rgba(18,18,30,.82)}
+body{background:var(--bg);color:#fff;font-family:'Space Grotesk',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(600px 400px at 20% 0%,rgba(255,215,0,.18),transparent 60%),radial-gradient(600px 400px at 90% 20%,rgba(0,255,136,.16),transparent 60%),radial-gradient(800px 600px at 50% 100%,rgba(0,229,255,.12),transparent 60%);pointer-events:none;z-index:0}
+.orb{position:fixed;border-radius:50%;filter:blur(60px);opacity:.5;z-index:0;animation:float 8s ease-in-out infinite}
+.orb1{width:260px;height:260px;background:#FFD700;top:-60px;left:-60px}
+.orb2{width:320px;height:320px;background:#00FF88;bottom:-80px;right:-80px;animation-delay:2s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-25px)}}
+.wrap{position:relative;z-index:1;max-width:460px;margin:0 auto;padding:28px 18px 40px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.logo-badge{background:linear-gradient(135deg,#FFD700,#FF9D00);color:#000;font-weight:900;font-size:11px;letter-spacing:1.5px;padding:7px 12px;border-radius:999px;box-shadow:0 0 25px rgba(255,215,0,.5)}
+.live{display:flex;align-items:center;gap:7px;background:rgba(0,255,136,.12);border:1px solid rgba(0,255,136,.35);color:#00FF88;font-size:12px;font-weight:700;padding:7px 11px;border-radius:999px}
+.live i{width:8px;height:8px;background:#00FF88;border-radius:50%;box-shadow:0 0 10px #00FF88;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.3}}
+.card{background:var(--card);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:26px 22px 22px;box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#FFD700,#00FF88,#00E5FF,#FFD700);background-size:200% 100%;animation:shine 3s linear infinite}
+@keyframes shine{to{background-position:200% 0}}
+.avatar-wrap{text-align:center;position:relative}
+.avatar{width:118px;height:118px;border-radius:32px;object-fit:cover;border:3px solid transparent;background:linear-gradient(#111,#111) padding-box,linear-gradient(135deg,#FFD700,#00FF88,#00E5FF) border-box;box-shadow:0 0 0 4px rgba(0,0,0,.3),0 0 40px rgba(255,215,0,.45);transform:rotate(-2deg)}
+.crown{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-2deg);background:#FFD700;color:#000;font-size:11px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px;box-shadow:0 4px 15px rgba(255,215,0,.6)}
+h1{font-family:'Unbounded',sans-serif;font-size:28px;line-height:1;text-align:center;margin:16px 0 4px;letter-spacing:-.5px}
+h1 span{background:linear-gradient(90deg,#FFD700,#FF9D00,#00FF88);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{text-align:center;font-size:13px;color:#a8a8b8}
+.sub b{color:#FFD700}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:18px 0}
+.stat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px 6px;text-align:center}
+.stat b{display:block;font-size:18px;font-family:'Unbounded',sans-serif}
+.stat span{font-size:10px;letter-spacing:1px;color:#a8a8b8;text-transform:uppercase}
+.stat:nth-child(1) b{color:#FFD700}.stat:nth-child(2) b{color:#00FF88}.stat:nth-child(3) b{color:#00E5FF}
+.status{border-radius:14px;padding:11px 13px;font-size:13px;font-weight:600;display:none;margin-bottom:12px}
+.status.show{display:block}
+.status.online{background:rgba(0,255,136,.14);border:1px solid rgba(0,255,136,.4);color:#00FF88}
+.status.waiting{background:rgba(255,200,0,.12);border:1px solid rgba(255,200,0,.4);color:#FFD700}
+.status.error{background:rgba(255,60,60,.14);border:1px solid rgba(255,60,60,.4);color:#FF6B6B}
+label{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#a8a8b8;font-weight:700}
+.input-box{display:flex;align-items:center;gap:10px;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:5px 6px 5px 14px;margin:8px 0 14px}
+.input-box:focus-within{border-color:#00FF88;box-shadow:0 0 0 3px rgba(0,255,136,.15)}
+.flag{font-size:22px}
+.input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:17px;font-weight:700;font-family:inherit;letter-spacing:.5px}
+.input-box input::placeholder{color:#555;font-weight:400}
+.paste{border:none;background:#222;color:#fff;font-size:11px;font-weight:800;padding:9px 11px;border-radius:11px;cursor:pointer}
+.btn-main{width:100%;border:none;cursor:pointer;padding:16px;border-radius:16px;font-size:15px;font-weight:900;letter-spacing:.5px;color:#000;background:linear-gradient(135deg,#FFD700 0%,#FF9D00 45%,#00FF88 100%);background-size:180% 100%;box-shadow:0 12px 30px rgba(255,180,0,.35);transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-main:hover{transform:translateY(-1px);background-position:100% 0;box-shadow:0 16px 35px rgba(0,255,136,.35)}
+.btn-main:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.code-box{display:none;margin:16px 0 6px;background:#000;border:1px dashed rgba(255,215,0,.6);border-radius:18px;padding:16px;text-align:center;position:relative;overflow:hidden}
+.code-box.show{display:block;animation:pop .35s ease}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.code-box small{font-size:10px;letter-spacing:2px;color:#FFD700;font-weight:900}
+.code{font-family:'Unbounded',sans-serif;font-size:34px;letter-spacing:6px;color:#fff;margin:6px 0 2px;text-shadow:0 0 25px rgba(255,215,0,.6)}
+.code-timer{font-size:11px;color:#a8a8b8}
+.code-actions{display:none;gap:10px;margin:10px 0}
+.code-actions.show{display:flex}
+.btn{flex:1;border-radius:13px;padding:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+.btn.gold{background:linear-gradient(135deg,#FFD700,#FF9D00);color:#000;border:none}
+.msg{text-align:center;font-size:13px;color:#c8c8d8;min-height:18px;margin:10px 0}
+.steps{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;margin-top:14px}
+.steps h3{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#FFD700;margin-bottom:10px}
+.step{display:flex;gap:10px;margin-bottom:10px;font-size:13px;line-height:1.5;color:#d8d8e0}
+.step:last-child{margin:0}
+.num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#FFD700,#00FF88);color:#000;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center}
+.footer{display:flex;gap:10px;margin-top:14px}
+.footer button{flex:1}
+.progress{display:none;height:5px;background:#222;border-radius:999px;overflow:hidden;margin:10px 0}
+.progress.show{display:block}
+.progress i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#FFD700,#00FF88);border-radius:999px;animation:load 1s infinite}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+.bottom{text-align:center;margin-top:18px;font-size:11px;color:#666;line-height:1.7}
+.bottom b{color:#888}
+@media(max-width:480px){h1{font-size:24px}.code{font-size:28px;letter-spacing:4px}}
 </style></head><body>
-<div class="box">
-<img src="https://files.catbox.moe/4nbm9j.jpg" onerror="this.src='https://i.imgur.com/8Q9Z9.png'">
-<h2>⚔️ KNIGHT XMD</h2><p>By Faceless Tech</p>
-
+<div class="orb orb1"></div><div class="orb orb2"></div>
+<div class="wrap">
+<div class="top"><div class="logo-badge">⚔️ FACELESS TECH</div><div class="live"><i></i><span id="liveText">CHECKING...</span></div></div>
+<div class="card">
+<div class="avatar-wrap"><div class="crown">👑 ROYAL</div><img class="avatar" src="https://files.catbox.moe/4nbm9j.jpg" onerror="this.src='https://i.imgur.com/8Q9Z9.png'"></div>
+<h1>KNIGHT <span>XMD</span></h1>
+<p class="sub">The most powerful WhatsApp bot • By <b>Faceless Tech</b></p>
+<div class="stats"><div class="stat"><b id="statOnline">0</b><span>Online</span></div><div class="stat"><b>⚡</b><span>Fast</span></div><div class="stat"><b id="statPrefix">.</b><span>Prefix</span></div></div>
 <div id="statusBox" class="status"></div>
-
-<p class="note">Enter your WhatsApp number without +<br>Example: 2348071569915</p>
-<input id="num" placeholder="2348071569915" inputmode="numeric" autocomplete="tel">
-<button id="pairBtn" onclick="pair()">GET PAIRING CODE</button>
-
-<div id="code" class="code"></div>
-<div class="row" id="codeActions" style="display:none">
-  <button class="secondary" onclick="copyCode()">📋 Copy Code</button>
-  <button class="secondary" onclick="pair()">🔄 New Code</button>
+<label>WhatsApp Number</label>
+<div class="input-box"><span class="flag">🇳🇬</span><input id="num" placeholder="2348071569915" inputmode="numeric" autocomplete="tel"><button class="paste" onclick="pasteNum()">PASTE</button></div>
+<div class="progress" id="progress"><i></i></div>
+<button id="pairBtn" class="btn-main" onclick="pair()">⚔️ GET PAIRING CODE →</button>
+<div class="code-box" id="codeBox"><small>✨ YOUR PAIRING CODE ✨</small><div class="code" id="code">---- ----</div><div class="code-timer" id="codeTimer">Expires in 60 seconds • Enter fast</div></div>
+<div class="code-actions" id="codeActions"><button class="btn gold" onclick="copyCode()">📋 Copy Code</button><button class="btn" onclick="pair()">🔄 New Code</button></div>
+<div class="msg" id="msg">Enter your number with country code, no +</div>
+<div class="steps"><h3>👑 How to pair in 30 seconds</h3>
+<div class="step"><div class="num">1</div><div>Click <b>GET PAIRING CODE</b> and copy the 8-digit code</div></div>
+<div class="step"><div class="num">2</div><div>Open WhatsApp → <b>Linked Devices</b> → <b>Link with phone number</b></div></div>
+<div class="step"><div class="num">3</div><div>Paste code, wait 5 sec. Bot go come online ✅</div></div>
+<div class="step"><div class="num">4</div><div>Send <b>.ping</b> to your bot to test. Then <b>.menu</b></div></div>
 </div>
-<div id="msg" class="note"></div>
-
-<div class="steps">
-<b>How to pair:</b><br>
-1. Click GET PAIRING CODE<br>
-2. Copy code above<br>
-3. WhatsApp > Linked Devices > Link with phone number<br>
-4. Paste code, wait 5 sec<br>
-5. Bot go come online ✅
+<div class="footer"><button class="btn" onclick="checkStatus()">🔍 Check Status</button><button class="btn" onclick="logout()">🚪 Logout</button></div>
 </div>
-
-<div class="row">
-  <button class="secondary" onclick="checkStatus()">🔍 Check Status</button>
-  <button class="secondary" onclick="logout()">🚪 Logout</button>
+<p class="bottom"><b>KNIGHT XMD v1.0</b> • Prefix <b>.</b> • Mode <b>Public</b><br>Made with ❤️ by Faceless Tech • Uyo, Nigeria</p>
 </div>
-
-<p class="footer">Prefix: . | Mode: Public<br>Knight XMD v1.0 - Faceless Tech</p>
-</div>
-
 <script>
-let currentCode = '';
-let statusTimer = null;
-
+let currentCode='', statusTimer=null, countdownTimer=null, secs=60;
+async function pasteNum(){ try{ const t=await navigator.clipboard.readText(); if(t) document.getElementById('num').value=t.replace(/[^0-9]/g,''); }catch{ document.getElementById('num').focus(); } }
 async function pair(){
-  const numEl = document.getElementById('num');
-  const btn = document.getElementById('pairBtn');
-  const number = numEl.value.trim().replace(/[^0-9]/g, '');
-
-  if(!number) return alert('Enter number');
-  if(number.length < 7) return alert('Invalid number. Use full number e.g. 2348071569915');
-
-  // FIXED: Disable button + show loading, so user no go click 5 times and expire code
-  btn.disabled = true;
-  btn.innerText = 'Generating... wait 5 sec ⏳';
-  document.getElementById('msg').innerText = 'Generating code... wait 5 sec, no click again';
-  document.getElementById('code').style.display = 'none';
-  document.getElementById('codeActions').style.display = 'none';
-
-  try {
-    const r = await fetch('/api/pair', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({number}) });
-    const d = await r.json();
-
+  const btn=document.getElementById('pairBtn');
+  const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');
+  if(!number) return show('error','❌ Enter number first');
+  if(number.length<7) return show('error','❌ Invalid number. Use full e.g. 2348071569915');
+  btn.disabled=true; btn.innerText='⏳ GENERATING... WAIT 5 SEC';
+  document.getElementById('progress').classList.add('show');
+  document.getElementById('codeBox').classList.remove('show');
+  document.getElementById('codeActions').classList.remove('show');
+  show('waiting','⏳ Generating your royal code... no click again');
+  try{
+    const r=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
+    const d=await r.json();
     if(d.code){
-      currentCode = d.code;
-      document.getElementById('code').style.display = 'block';
-      document.getElementById('code').innerText = d.code;
-      document.getElementById('codeActions').style.display = 'flex';
-      document.getElementById('msg').innerText = d.message || 'Enter this code in WhatsApp';
-      showStatus('waiting', '⏳ Waiting for you to enter code in WhatsApp...');
-      // Auto check every 5s if bot don connect
-      startStatusPolling(number);
-    } else if(d.alreadyConnected) {
-      showStatus('online', '✅ Bot already connected for this number!');
-      document.getElementById('msg').innerText = 'Bot already online. Send .ping to test.';
-    } else {
-      document.getElementById('msg').innerText = d.message || 'Failed, try again';
-      showStatus('waiting', '❌ ' + (d.message || 'Failed'));
-    }
-  } catch(e) {
-    document.getElementById('msg').innerText = 'Network error, check server and try again';
-  }
-
-  btn.disabled = false;
-  btn.innerText = 'GET PAIRING CODE';
+      currentCode=d.code;
+      document.getElementById('code').innerText=d.code;
+      document.getElementById('codeBox').classList.add('show');
+      document.getElementById('codeActions').classList.add('show');
+      show('waiting','⏳ Waiting for you to enter code in WhatsApp...');
+      startCountdown(); startStatusPolling(number);
+    } else if(d.alreadyConnected){ show('online','✅ Bot already connected! Send .ping to test.'); }
+    else show('error','❌ '+(d.message||'Failed, try again'));
+  }catch{ show('error','❌ Network error, check server'); }
+  btn.disabled=false; btn.innerText='⚔️ GET PAIRING CODE →';
+  document.getElementById('progress').classList.remove('show');
 }
-
-function copyCode(){
-  if(!currentCode) return;
-  navigator.clipboard.writeText(currentCode).then(() => {
-    document.getElementById('msg').innerText = '✅ Code copied! Paste in WhatsApp';
-  }).catch(() => {
-    // Fallback for old browsers
-    prompt('Copy code:', currentCode);
-  });
-}
-
-async function checkStatus(){
-  const number = document.getElementById('num').value.trim().replace(/[^0-9]/g, '');
-  try {
-    const r = await fetch('/api/status');
-    const d = await r.json();
-    if(d.online > 0){
-      showStatus('online', `✅ Online: ${d.online} bot(s) connected - ${d.bots.join(', ')}`);
-      document.getElementById('msg').innerText = 'Bot online! Send .ping to test.';
-    } else {
-      showStatus('waiting', '⚪ No bot online yet. Pair first.');
-      document.getElementById('msg').innerText = 'No bot online. Click GET PAIRING CODE';
-    }
-  } catch { document.getElementById('msg').innerText = 'Cannot reach server'; }
-}
-
-function startStatusPolling(number){
-  if(statusTimer) clearInterval(statusTimer);
-  let tries = 0;
-  statusTimer = setInterval(async () => {
-    tries++;
-    if(tries > 24) { clearInterval(statusTimer); return; } // stop after 2 mins
-    try {
-      const r = await fetch('/api/status');
-      const d = await r.json();
-      if(d.bots && d.bots.includes(number)){
-        showStatus('online', '✅ Connected! Bot is now online. Send .ping to test.');
-        document.getElementById('msg').innerText = '✅ Connected! You can close this page.';
-        clearInterval(statusTimer);
-      }
-    } catch {}
-  }, 5000);
-}
-
-function showStatus(type, text){
-  const el = document.getElementById('statusBox');
-  el.className = 'status ' + type;
-  el.innerText = text;
-  el.style.display = 'block';
-}
-
-async function logout(){
-  const number = document.getElementById('num').value.trim().replace(/[^0-9]/g, '');
-  if(!number) return alert('Enter number first');
-  if(!confirm('Logout this number?')) return;
-  try {
-    const r = await fetch('/api/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({number}) });
-    const d = await r.json();
-    document.getElementById('msg').innerText = d.message;
-    if(d.success) showStatus('waiting', 'Logged out. Pair again to reconnect.');
-  } catch { document.getElementById('msg').innerText = 'Logout failed'; }
-}
-
-// Check status on load
+function startCountdown(){ secs=60; clearInterval(countdownTimer); countdownTimer=setInterval(()=>{ secs--; document.getElementById('codeTimer').innerText=`Expires in ${secs} seconds • Enter fast`; if(secs<=0){ clearInterval(countdownTimer); document.getElementById('codeTimer').innerText='⚠️ Code expired, click New Code'; } },1000); }
+function copyCode(){ if(!currentCode) return; navigator.clipboard.writeText(currentCode).then(()=>show('online','✅ Code copied! Paste in WhatsApp now')).catch(()=>prompt('Copy code:',currentCode)); }
+async function checkStatus(){ try{ const r=await fetch('/api/status'); const d=await r.json(); document.getElementById('statOnline').innerText=d.online||0; if(d.prefix) document.getElementById('statPrefix').innerText=d.prefix; if(d.online>0){ document.getElementById('liveText').innerText='LIVE • '+d.online+' ONLINE'; show('online',`✅ Online: ${d.online} bot(s) — ${d.bots.join(', ')}`); } else { document.getElementById('liveText').innerText='OFFLINE'; show('waiting','⚪ No bot online yet. Pair first.'); } }catch{ document.getElementById('liveText').innerText='OFFLINE'; show('error','❌ Cannot reach server'); } }
+function startStatusPolling(number){ if(statusTimer) clearInterval(statusTimer); let tries=0; statusTimer=setInterval(async()=>{ tries++; if(tries>24){ clearInterval(statusTimer); return; } try{ const r=await fetch('/api/status'); const d=await r.json(); if(d.bots && d.bots.includes(number)){ show('online','✅ CONNECTED! Bot is now online. Send .ping to test.'); document.getElementById('codeTimer').innerText='✅ Connected! You can close this page.'; clearInterval(statusTimer); clearInterval(countdownTimer); checkStatus(); } }catch{} },5000); }
+function show(type,text){ const el=document.getElementById('statusBox'); el.className='status show '+type; el.innerText=text; document.getElementById('msg').innerText=text; }
+async function logout(){ const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,''); if(!number) return show('error','Enter number first'); if(!confirm('Logout this number?')) return; try{ const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})}); const d=await r.json(); show(d.success?'online':'error',d.message); }catch{ show('error','Logout failed'); } }
 checkStatus();
 </script></body></html>
