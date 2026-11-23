@@ -1,0 +1,12 @@
+module.exports = [
+{ command: ['antilink'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antilink=v; await reply(`🔗 AntiLink ${v?'ON ✅ - Links will be deleted':'OFF ❌'}`); }},
+{ command: ['antibot'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antibot=v; await reply(`🤖 AntiBot ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antispam'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antispam=v; await reply(`🚫 AntiSpam ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antiflood'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antiflood=v; await reply(`🌊 AntiFlood ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antitag'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antitag=v; await reply(`🏷️ AntiTag ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antidelete'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antidelete=v; await reply(`🗑️ AntiDelete ${v?'ON ✅ - Deleted messages will be recovered':'OFF ❌'}`); }},
+{ command: ['antibadword'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antibadword=v; await reply(`🤬 AntiBadword ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antisticker'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antisticker=v; await reply(`🏷️ AntiSticker ${v?'ON ✅':'OFF ❌'}`); }},
+{ command: ['antifake'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antifake=v; await reply(`🌍 AntiFake ${v?'ON ✅ - Only +234 allowed':'OFF ❌'}`); }},
+{ command: ['antipromote'], adminOnly: true, run: async ({ reply, from, args }) => { global.db.anti[from]=global.db.anti[from]||{}; const v=args[0]==='on'; global.db.anti[from].antipromote=v; await reply(`⬆️ AntiPromote ${v?'ON ✅':'OFF ❌'}`); }},
+];
