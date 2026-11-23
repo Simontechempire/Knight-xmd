@@ -1,4 +1,4 @@
-// KNIGHT XMD - Main Handler - Fixed Multi-Owner
+// KNIGHT XMD - Main Handler - Connected to group.js + Multi-Owner
 // Creator = controls ALL bots, no cap
 // Owner = person wey link THIS bot only
 const fs = require('fs');
@@ -72,7 +72,6 @@ function box(title, lines) {
   return t;
 }
 
-// FIX: clean number - remove :xx LID part
 const cleanNum = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
 async function handleMessage(sock, up, botNumber) {
@@ -82,28 +81,27 @@ async function handleMessage(sock, up, botNumber) {
   const from = m.key.remoteJid;
   const isGroup = from.endsWith('@g.us');
   const sender = isGroup ? m.key.participant : from;
-  if (!sender) return;
-  const senderNum = cleanNum(sender);
+  if (!sender && !m.key.fromMe) return;
 
-  // FIX: botNum = person wey link THIS bot (Session Owner)
-  // botNumber dey come from connection.js as clean number, e.g "2349012345678" for David
+  // FIX: botNum = person wey link THIS bot
   const botNum = cleanNum(botNumber || sock.user?.id || '');
   const botJid = sock.user ? cleanNum(sock.user.id) + '@s.whatsapp.net' : '';
+  const sockUserRaw = sock.user?.id || '';
 
-  // ===== OWNER LOGIC - THE MAIN FIX =====
+  // FIX: If fromMe, sender na bot itself = Session Owner
+  let senderNum = cleanNum(sender);
+  if (m.key.fromMe) senderNum = botNum;
+
+  // ===== OWNER LOGIC - CONNECTED =====
   const CREATOR = cleanNum(config.creatorNumber || config.creator || "2348071569915");
-  const SESSION_OWNER = botNum; // David if David link, Ada if Ada link
+  const SESSION_OWNER = botNum;
 
-  const isCreator = senderNum === CREATOR; // You - control ALL bots, no cap
-  const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== ""; // Linker only for THIS bot
+  const isCreator = senderNum === CREATOR;
+  const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== "";
   const isOwner = isCreator || isSessionOwner;
 
-  // FIX: Don't block fromMe completely.
-  // If message na from bot itself (owner dey use bot number to send command), allow am if na owner/creator
-  // If na from other person, fromMe go be false anyway
-  const isSelfMsg = !!m.key.fromMe;
-  if (isSelfMsg && !isOwner && senderNum !== botNum) return; // ignore bot own status etc
-  // If isSelfMsg but sender is botNum, we continue - na owner dey use am
+  // If fromMe but no be owner (e.g status), ignore
+  if (m.key.fromMe && !isOwner) return;
 
   const msg = m.message;
   const type = Object.keys(msg)[0];
@@ -122,12 +120,30 @@ async function handleMessage(sock, up, botNumber) {
   if (isGroup) {
     try {
       groupMeta = await sock.groupMetadata(from);
-      isAdmin = !!groupMeta.participants.find(p => cleanNum(p.id) === senderNum)?.admin;
-      isBotAdmin = !!groupMeta.participants.find(p => cleanNum(p.id) === botNum)?.admin;
+      // FIX: Check both LID + normal JID for sender
+      const senderPart = groupMeta.participants.find(p => {
+        if (cleanNum(p.id) === senderNum) return true;
+        if (p.id === sender) return true;
+        // LID case: participant id fit be different but same person, check pn field if e dey
+        if (p.pn && cleanNum(p.pn) === senderNum) return true;
+        return false;
+      });
+      isAdmin = !!senderPart?.admin;
+
+      // FIX: Check bot admin with ALL possible forms - LID, pn, s.whatsapp.net, sock.user.id
+      const botPart = groupMeta.participants.find(p => {
+        if (cleanNum(p.id) === botNum) return true;
+        if (p.id === sockUserRaw) return true;
+        if (p.id === botJid) return true;
+        if (p.pn && cleanNum(p.pn) === botNum) return true;
+        if (cleanNum(p.pn || '') === botNum) return true;
+        return false;
+      });
+      isBotAdmin = !!botPart?.admin;
     } catch {}
   }
 
-  // ANTI FEATURES - Owner/Creator/Admin bypass
+  // ANTI FEATURES
   if (isGroup && !isOwner && !isAdmin) {
     const gAnti = global.db.anti?.[from] || {};
     const textLower = body.toLowerCase();
@@ -213,40 +229,32 @@ async function handleMessage(sock, up, botNumber) {
   });
   if (!plugin) return;
 
-  // ========== MODE CHECK - FIXED ==========
-  // private = only Owner/Creator for OWNER cmds, but GROUP cmds still work for group members? 
-  // If you want private to block everything, keep this. If you want group cmds to work in private, comment am.
-  if (config.mode === 'private' && !isOwner) {
-    // FIX: silent ignore, no "you are not my owner" reply
-    // Ada wey no link no get right to get reply
-    return;
-  }
-  if (config.mode === 'self' && !isOwner) return; // self = only bot owner + creator
+  // ========== MODE CHECK ==========
+  if (config.mode === 'private' && !isOwner) return; // silent
+  if (config.mode === 'self' && !isOwner) return;
 
-  // ========== PERMISSION CHECK - FIXED SILENT ==========
-  // OWNER CMD: e.g .mode, .ban, .restart
-  if (plugin.ownerOnly && !isOwner) return; // SILENT - no reply, Ada no get right
+  // ========== PERMISSION CHECK - CONNECTED TO group.js ==========
+  if (plugin.ownerOnly && !isOwner) return; // silent - Ada wey no link no get reply
+  if (plugin.creatorOnly && !isCreator) return; // silent
 
-  // CREATOR ONLY: e.g .broadcast-all, .shutdown-all
-  // Only YOU, even Session Owner no fit
-  if (plugin.creatorOnly && !isCreator) return; // SILENT
-
-  // ADMIN / GROUP CMD: e.g .kick, .tagall, .promote
+  // GROUP CMD - e.g .tagall, .kick, .promote
+  // FIX: Separate adminOnly vs botAdminOnly
   if (plugin.adminOnly) {
-    if (!isGroup) return; // silent, no reply
-    // Owner/Creator bypass admin check - they fit use group cmd even if no be admin
-    if (!isAdmin && !isOwner) return; // silent
-    if (!isBotAdmin) {
-      // This one we reply because na real user wey need help, no be owner check
-      return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
-    }
+    if (!isGroup) return;
+    if (!isAdmin && !isOwner) return; // silent - only group admin + owner/creator
+    // NO isBotAdmin check here! .tagall no need bot admin
   }
 
-  // GROUP CMD: e.g .tagall if plugin.groupOnly = true
+  // BOT ADMIN ONLY - e.g .kick, .promote, .close, .grouplink, .setname
+  // Only these ones go check bot admin
+  if (plugin.botAdminOnly && !isBotAdmin) {
+    return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
+  }
+
   if (plugin.groupOnly && !isGroup) return;
 
   const ctx = {
-    sock, m, from, sender, senderNum,
+    sock, m, from, sender: sender || botJid, senderNum,
     botNumber: botNum, botJid,
     isGroup, isOwner, isCreator, isSessionOwner,
     isAdmin, isBotAdmin,
@@ -268,7 +276,7 @@ async function handleMessage(sock, up, botNumber) {
   };
 
   try {
-    console.log(`[CMD] ${senderNum} -> ${config.prefix}${cmdName} | Owner:${isOwner} Creator:${isCreator} SessionOwner:${isSessionOwner} Bot:${botNum}`);
+    console.log(`[CMD] ${senderNum} -> ${config.prefix}${cmdName} | Owner:${isOwner} Creator:${isCreator} SessionOwner:${isSessionOwner} Bot:${botNum} isAdmin:${isAdmin} isBotAdmin:${isBotAdmin}`);
     await plugin.run(ctx);
   } catch (e) {
     console.log('CMD error', cmdName, e.message);
