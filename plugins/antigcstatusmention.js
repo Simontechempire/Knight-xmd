@@ -1,108 +1,127 @@
-// KNIGHT XMD - Anti GC Status Mention
-// File: antigcstatusmention.js
-// Auto: If user mention group in him post / status -> Delete from everyone instantly + Warn
-// 2 warns = Delete + Kick instantly
-// No demo, no fake
+// KNIGHT XMD - REAL Anti GC Status Mention - Auto
+// File: plugins/antigcstatusmention.js
+// REAL: Only group message wey mention group fit delete. Status tab bot no fit see.
+// .antigcstatus on / off
+
+const fs = require('fs');
+const path = require('path');
+
+const DB_PATH = path.join(__dirname, '../database/antigcstatus.json');
+const WARN_PATH = path.join(__dirname, '../database/warnings.json');
+
+function load(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; } }
+function save(p, d) {
+  if (!fs.existsSync(path.dirname(p))) fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(d, null, 2));
+}
 
 module.exports = [
+  // ===== COMMAND: .antigcstatus on / off =====
   {
-    command: [],
-    all: true, // Auto - no command needed
-    run: async ({ sock, m, from, sender, sessionDB }) => {
-      try {
-        if (!m.message) return;
-        if (m.key?.fromMe) return;
+    command: ['antigcstatus', 'antigcstatusmention'],
+    groupOnly: true,
+    adminOnly: true,
+    run: async ({ from, reply, args, isGroup }) => {
+      if (!isGroup) return reply('❌ Only in groups');
+      const input = (args[0] || '').toLowerCase();
+      const db = load(DB_PATH);
+      if (!input) {
+        const on = db[from]?.on !== false; // default ON
+        return reply(`🛡️ Anti GC Status Mention: ${on ? 'ON ✅' : 'OFF ❌'}\n\n.antigcstatus on - Delete + Warn\n.antigcstatus off - Allow`);
+      }
+      if (input === 'on' || input === 'off') {
+        db[from] = { on: input === 'on' };
+        save(DB_PATH, db);
+        return reply(`🛡️ Anti GC Status Mention ${input === 'on' ? 'ON ✅' : 'OFF ❌'} for this group`);
+      }
+      return reply('Usage: .antigcstatus on / off');
+    }
+  },
 
-        // ===== 1. GET MESSAGE + MENTIONS =====
+  // ===== AUTO: Delete + Warn + Kick =====
+  {
+    all: true,
+    groupOnly: true,
+    run: async ({ sock, m, from, sender, isBotAdmin }) => {
+      try {
+        if (!m?.message) return;
+        if (m.key?.fromMe) return;
+        if (!from?.endsWith('@g.us')) return; // REAL: Only group messages bot fit see
+
+        // Check if enabled - default ON
+        const cfg = load(DB_PATH);
+        if (cfg[from]?.on === false) return;
+
+        // Bot must be admin to delete/kick, else no fit do anything
+        if (isBotAdmin === false) return;
+
         const msg = m.message;
-        const textMsg = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || '';
-        const ctx = msg.extendedTextMessage?.contextInfo || msg.imageMessage?.contextInfo || msg.videoMessage?.contextInfo || msg.stickerMessage?.contextInfo || {};
+        const ctx = msg.extendedTextMessage?.contextInfo
+          || msg.imageMessage?.contextInfo
+          || msg.videoMessage?.contextInfo
+          || msg.stickerMessage?.contextInfo
+          || msg.documentMessage?.contextInfo
+          || {};
+
         const mentioned = ctx.mentionedJid || [];
 
-        // ===== 2. CHECK IF USER MENTION GROUP =====
-        // WhatsApp group mention = mentionedJid contain group JID (ends with @g.us)
-        // OR text contain @group / group link / status mention
-        const isGroupChat = from.endsWith('@g.us');
-        const mentionedGroup = mentioned.find(j => j.endsWith('@g.us'));
-        const mentionedGroupId = mentionedGroup || null;
+        // ===== REAL DETECTION =====
+        // WhatsApp when you mention group in post/status, the message wey enter group get:
+        // mentionedJid contains the group JID itself (e.g 123@g.us)
+        // OR messageContextInfo contains status mention
+        // We check BOTH, no guessing with "@group" text
+        const mentionedThisGroup = mentioned.some(j => j === from);
+        const hasStatusMention = !!msg.messageContextInfo?.statusMention
+          || !!ctx?.statusMention
+          || JSON.stringify(msg).includes('statusMention');
 
-        // Case A: In group, user mention group itself
-        let isGcStatusMention = false;
-        let targetGroupId = null;
+        // If user no mention this group, leave am - no false delete
+        if (!mentionedThisGroup && !hasStatusMention) return;
 
-        if (isGroupChat && mentionedGroup) {
-          isGcStatusMention = true;
-          targetGroupId = from;
+        // ===== 1. REAL DELETE FOR EVERYONE - Use REAL m.key from WhatsApp =====
+        const deleteKey = {
+          remoteJid: from,
+          fromMe: false,
+          id: m.key.id, // REAL id from WhatsApp, no be guessed stanzaId
+          participant: sender // REAL sender
+        };
+        try {
+          await sock.sendMessage(from, { delete: deleteKey });
+        } catch (e) {
+          console.log('[ANTIGCSTATUS DELETE]', e.message);
+          // If delete fail (old msg / no admin), still warn, no hide error
         }
 
-        // Case B: Status - from = status@broadcast, and mentionedJid = group
-        // status@broadcast message wey mention group
-        if (from === 'status@broadcast' && mentionedGroup) {
-          isGcStatusMention = true;
-          targetGroupId = mentionedGroup;
-        }
-
-        // Case C: Text contain group mention trigger - "mention group" / "@group" / status tag
-        const lower = textMsg.toLowerCase();
-        if (isGroupChat && (lower.includes('@group') || lower.includes('mention group') || lower.includes('@gcstatus') || lower.includes('@all'))) {
-          // Only if e really tag group - avoid false for normal @all
-          if (mentioned.length > 0) {
-            isGcStatusMention = true;
-            targetGroupId = from;
-          }
-        }
-
-        if (!isGcStatusMention) return;
-
-        // ===== 3. TARGET GROUP TO KICK FROM =====
-        // If na status, kick from the mentioned group. If na group post, kick from that group
-        const kickGroup = targetGroupId || from;
-        const isKickGroup = kickGroup.endsWith('@g.us');
-        if (!isKickGroup) return;
-
+        // ===== 2. REAL WARN COUNT - File DB, no be global.db =====
+        const warnDB = load(WARN_PATH);
+        warnDB[from] = warnDB[from] || {};
         const targetNum = sender.split('@')[0].split(':')[0];
+        warnDB[from][targetNum] = (warnDB[from][targetNum] || 0) + 1;
+        const count = warnDB[from][targetNum];
+        save(WARN_PATH, warnDB);
 
-        // ===== 4. DELETE FROM EVERYONE INSTANTLY - SAME AS GCSTATUS =====
-        // Only if na group message - Status no fit delete (WhatsApp no allow delete another person status)
-        // But group post fit delete instantly
-        if (isGroupChat) {
-          const deleteKey = {
-            remoteJid: from,
-            fromMe: false,
-            id: m.key.id,
-            participant: sender,
-          };
-          try {
-            await sock.sendMessage(from, { delete: deleteKey });
-          } catch (e) {
-            console.log('[ANTIGCSTATUSMENTION DELETE]', e.message);
-          }
-        }
-
-        // ===== 5. WARN COUNT - Same DB as gcstatusdelete.js =====
-        const db = sessionDB || global.db;
-        db.warnings ??= {};
-        db.warnings[kickGroup] ??= {};
-        const count = (db.warnings[kickGroup][targetNum] = (db.warnings[kickGroup][targetNum] || 0) + 1);
-
-        // ===== 6. 2 WARNS = KICK INSTANTLY =====
+        // ===== 3. 2 WARNS = KICK =====
         if (count >= 2) {
-          db.warnings[kickGroup][targetNum] = 0;
-          await Promise.all([
-            sock.sendMessage(kickGroup, { text: `🚨 *ANTI-GCSTATUS-MENTION 2/2 - KICKED*\n\n👤 User: @${targetNum}\n🗑️ Mention group in status post deleted from everyone\n🦵 Action: Kicked instantly`, mentions: [sender] }),
-            sock.groupParticipantsUpdate(kickGroup, [sender], 'remove')
-          ]);
+          warnDB[from][targetNum] = 0;
+          save(WARN_PATH, warnDB);
+          try {
+            await sock.groupParticipantsUpdate(from, [sender], 'remove');
+          } catch (e) { console.log('[ANTIGCSTATUS KICK]', e.message); return; }
+          await sock.sendMessage(from, {
+            text: `🚨 *ANTI-GCSTATUS 2/2 - KICKED*\n\n👤 @${targetNum}\n🗑️ Mention group in status post deleted\n🦵 Kicked`,
+            mentions: [sender]
+          });
           return;
         }
 
-        // ===== 7. WARN 1/2 =====
-        await sock.sendMessage(kickGroup, {
-          text: `⚠️ *ANTI-GCSTATUS-MENTION WARN ${count}/2*\n\n👤 User: @${targetNum}\n🗑️ Mention group in status post deleted from everyone\n⚠️ No mention group for your status again. 1 more = Kick`,
+        // ===== 4. WARN 1/2 =====
+        await sock.sendMessage(from, {
+          text: `⚠️ *ANTI-GCSTATUS WARN ${count}/2*\n\n👤 @${targetNum}\n🗑️ Mention group in status post deleted for everyone\n⚠️ No mention group for status again. 1 more = Kick`,
           mentions: [sender]
         });
 
       } catch (e) {
-        console.log('[ANTIGCSTATUSMENTION]', e.message);
+        console.log('[ANTIGCSTATUS]', e.message);
       }
     }
   }
