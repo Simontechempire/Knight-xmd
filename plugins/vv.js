@@ -1,32 +1,43 @@
-// KNIGHT XMD - VV - NEW WhatsApp View Once Method - 2026
+// KNIGHT XMD - VV - SAFE - Auto to PAIR OWNER DM Only
+// By Faceless Tech
+// Owner = person wey pair the bot (sock.user.id) - No number to change
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-// ===== NEW METHOD: Find View Once anywhere - recursive =====
+// Owner = paired account. E go auto detect am.
+function getOwnerJid(sock) {
+  if (!sock?.user?.id) return null;
+  // sock.user.id fit be 234810xxx:12@s.whatsapp.net or 234810xxx@lid
+  let id = String(sock.user.id).split(':')[0];
+  if (!id.includes('@')) id += '@s.whatsapp.net';
+  return id;
+}
+
+function isOwner(sock, m, from) {
+  if (m?.key?.fromMe) return true;
+  const owner = getOwnerJid(sock);
+  if (!owner) return false;
+  const sender = m.key.participant || from || m.key.remoteJid;
+  const senderClean = String(sender).split(':')[0].split('@')[0];
+  const ownerClean = String(owner).split(':')[0].split('@')[0];
+  // Also check LID vs normal number - if owner JID na @lid, check remoteJid too
+  if (senderClean === ownerClean) return true;
+  // If message dey for owner DM directly
+  if (String(from).split(':')[0].split('@')[0] === ownerClean) return true;
+  return false;
+}
+
 function findViewOnce(obj) {
   if (!obj || typeof obj !== 'object') return null;
-
-  // 1. Direct viewOnce containers
   if (obj.viewOnceMessageV2?.message) return findViewOnce(obj.viewOnceMessageV2.message) || obj.viewOnceMessageV2.message;
   if (obj.viewOnceMessage?.message) return findViewOnce(obj.viewOnceMessage.message) || obj.viewOnceMessage.message;
   if (obj.viewOnceMessageV2Extension?.message) return obj.viewOnceMessageV2Extension.message;
-
-  // 2. Ephemeral wrapper - new WhatsApp dey hide am inside here
   if (obj.ephemeralMessage?.message) {
     const f = findViewOnce(obj.ephemeralMessage.message);
     if (f) return f;
   }
-
-  // 3. New format: image/video with viewOnce: true
-  if (obj.imageMessage?.viewOnce === true) return obj;
-  if (obj.videoMessage?.viewOnce === true) return obj;
-  if (obj.audioMessage?.viewOnce === true) return obj;
-
-  // 4. Normal image/video inside viewOnce wrapper
   if (obj.imageMessage) return obj;
   if (obj.videoMessage) return obj;
   if (obj.audioMessage) return obj;
-
-  // 5. Deep search - check all keys
   for (const k of Object.keys(obj)) {
     const v = obj[k];
     if (v && typeof v === 'object') {
@@ -37,63 +48,93 @@ function findViewOnce(obj) {
   return null;
 }
 
-module.exports = [
+function attachEngine(sock) {
+  if (!sock || !sock.ev) return;
+  if (sock.__vvSafePair) return;
+  sock.__vvSafePair = true;
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    try {
+      const m = messages[0];
+      if (!m || !m.message) return;
+      if (m.key.fromMe) return;
+      if (!JSON.stringify(m.message).includes('viewOnce')) return;
+
+      const OWNER_JID = getOwnerJid(sock);
+      if (!OWNER_JID) return;
+
+      const target = findViewOnce(m.message);
+      if (!target) return;
+      const type = Object.keys(target).find(k => k === 'imageMessage' || k === 'videoMessage' || k === 'audioMessage');
+      if (!type) return;
+      const mediaObj = target[type];
+      if (!mediaObj.mediaKey) return;
+
+      const mediaType = type.replace('Message', '');
+      const sender = m.key.participant || m.key.remoteJid;
+      const senderNum = String(sender).split('@')[0].split(':')[0];
+      const where = m.key.remoteJid === 'status@broadcast' ? 'Status' : m.key.remoteJid.includes('@g.us') ? 'Group' : 'DM';
+
+      // If owner himself send VV, no need send to himself
+      if (isOwner(sock, m, m.key.remoteJid)) return;
+
+      let buffer = Buffer.from([]);
+      try {
+        if (sock.downloadMediaMessage) buffer = await sock.downloadMediaMessage(m, 'buffer', {});
+      } catch {}
+      if (!buffer || buffer.length < 100) {
+        const stream = await downloadContentFromMessage(mediaObj, mediaType);
+        for await (const c of stream) buffer = Buffer.concat([buffer, c]);
+      }
+      if (!buffer || buffer.length < 100) return;
+
+      // ===== SAFE: SEND ONLY TO PAIR OWNER DM =====
+      const caption = `👁️ *VIEW ONCE RECOVERED - SAFE*\n\n👤 From: @${senderNum}\n📍 Where: ${where}\n📅 Date: ${new Date().toLocaleString()}\n\nBy Knight XMD ⚔️`;
+
+      if (mediaType === 'image') await sock.sendMessage(OWNER_JID, { image: buffer, caption, mentions: [sender] });
+      else if (mediaType === 'video') await sock.sendMessage(OWNER_JID, { video: buffer, caption, mentions: [sender] });
+      else if (mediaType === 'audio') await sock.sendMessage(OWNER_JID, { audio: buffer, mimetype: 'audio/mp4', ptt: mediaObj.ptt || false, caption, mentions: [sender] });
+
+      console.log('[VV SAFE] Sent to Pair Owner:', OWNER_JID, 'from:', senderNum);
+    } catch (e) { console.log('[VV SAFE]', e.message); }
+  });
+  console.log('[VV SAFE] Auto to Pair Owner DM loaded ✅ - Owner:', getOwnerJid(sock));
+}
+
+const plugin = [
   {
     command: ['vv', 'viewonce', 'reveal'],
     run: async ({ sock, m, from, reply }) => {
-      // Get quoted OR direct message
+      // SAFE: Only pair owner fit use .vv
+      if (!isOwner(sock, m, from)) {
+        return reply('❌ Only owner fit use this command.');
+      }
+      const OWNER_JID = getOwnerJid(sock);
       const ctx = m.message.extendedTextMessage?.contextInfo;
       const quoted = ctx?.quotedMessage;
-      const quotedParticipant = ctx?.participant;
-
-      // Try quoted first, then direct
-      let target = null;
-      if (quoted) target = findViewOnce(quoted);
-      if (!target) target = findViewOnce(m.message);
-
-      if (!target) return reply('❌ Reply to a View Once photo/video with .vv\n\nMake sure you reply the View Once message, no be screenshot.');
-
-      const type = Object.keys(target)[0]; // imageMessage / videoMessage / audioMessage
+      if (!quoted) return reply('❌ Reply to a VV with .vv\n\nBut normally e don already enter your DM automatically. Check your DM.');
+      const target = findViewOnce(quoted);
+      if (!target) return reply('❌ No VV found. Check your DM, e fit don already send am there.');
+      const type = Object.keys(target).find(k => k === 'imageMessage' || k === 'videoMessage' || k === 'audioMessage');
+      if (!type) return reply('❌ Unsupported');
+      const mediaObj = target[type];
+      if (!mediaObj.mediaKey) return reply('❌ Empty media key. Check your DM - auto VV don already send am when e first enter.');
       try {
-        await reply('👁️ Recovering View Once...');
-
-        // ===== NEW METHOD: downloadContentFromMessage with correct type =====
-        const mediaType = type.includes('image') ? 'image' : type.includes('video') ? 'video' : type.includes('audio') ? 'audio' : 'image';
-        const mediaObj = target[type];
-
-        // Fix: Baileys need full message object, not just mediaObj - use downloadMediaMessage if available
-        let buf = Buffer.from([]);
-        try {
-          // Method 1 - New Baileys: downloadMediaMessage (handles viewOnce)
-          if (sock.downloadMediaMessage) {
-            // Build fake message for download
-            const fakeMsg = { message: target, key: m.key };
-            buf = await sock.downloadMediaMessage(fakeMsg, 'buffer', {}, { logger: undefined });
-          }
-        } catch {}
-        // Method 2 - Fallback: downloadContentFromMessage
-        if (!buf || buf.length < 100) {
-          const stream = await downloadContentFromMessage(mediaObj, mediaType);
-          buf = Buffer.from([]);
-          for await (const c of stream) buf = Buffer.concat([buf, c]);
-        }
-
-        if (!buf || buf.length < 100) return reply('❌ Failed - View Once don expire or WhatsApp don block am. Try am quick next time.');
-
-        const caption = '👁️ *View Once Recovered*\nBy Knight XMD ⚔️';
-
-        if (type.includes('image')) {
-          await sock.sendMessage(from, { image: buf, caption }, { quoted: m });
-        } else if (type.includes('video')) {
-          await sock.sendMessage(from, { video: buf, caption }, { quoted: m });
-        } else if (type.includes('audio')) {
-          await sock.sendMessage(from, { audio: buf, mimetype: 'audio/mp4', ptt: mediaObj.ptt || false }, { quoted: m });
-        } else {
-          await sock.sendMessage(from, { document: buf, fileName: 'viewonce.bin', caption }, { quoted: m });
-        }
-      } catch (e) {
-        await reply('❌ Failed: ' + e.message + '\nTry reply again quick, View Once fit don expire.');
-      }
+        const mediaType = type.replace('Message', '');
+        const stream = await downloadContentFromMessage(mediaObj, mediaType);
+        let buffer = Buffer.from([]);
+        for await (const c of stream) buffer = Buffer.concat([buffer, c]);
+        if (!buffer || buffer.length < 100) return reply('❌ Expired. Check your DM.');
+        const caption = `👁️ *VIEW ONCE RECOVERED*\nBy Knight XMD ⚔️`;
+        if (mediaType === 'image') await sock.sendMessage(OWNER_JID, { image: buffer, caption }, { quoted: m });
+        else if (mediaType === 'video') await sock.sendMessage(OWNER_JID, { video: buffer, caption }, { quoted: m });
+        else if (mediaType === 'audio') await sock.sendMessage(OWNER_JID, { audio: buffer, mimetype: 'audio/mp4' }, { quoted: m });
+        await reply('✅ Sent to your DM. Check your DM.');
+      } catch (e) { await reply('❌ Failed: ' + e.message); }
     }
   },
 ];
+
+plugin.attachEngine = attachEngine;
+plugin.__call = attachEngine;
+module.exports = plugin;
