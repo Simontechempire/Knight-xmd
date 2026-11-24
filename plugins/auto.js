@@ -1,15 +1,10 @@
-// KNIGHT XMD - Auto System - FIXED + Connected to handler.js
-// By Faceless Tech
+// KNIGHT XMD - Auto System - FIXED - Status = status@broadcast
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+
 function getSettings() {
   if (!global.db) global.db = {};
-  if (!global.db.settings) {
-    global.db.settings = {
-      autoRead: false, autoTyping: false, autoOnline: true,
-      autoRecording: false, autoReact: false, autoReply: false,
-      autoSticker: false, autoView: false, autoBio: false, autoLikeStatus: false,
-    };
-  }
-  const def = { autoRead:false, autoTyping:false, autoOnline:true, autoRecording:false, autoReact:false, autoReply:false, autoSticker:false, autoView:false, autoBio:false, autoLikeStatus:false };
+  if (!global.db.settings) global.db.settings = {};
+  const def = { autoRead: false, autoTyping: false, autoOnline: true, autoRecording: false, autoReact: false, autoReply: false, autoSticker: false, autoView: false, autoBio: false, autoLikeStatus: false };
   for (const k of Object.keys(def)) if (global.db.settings[k] === undefined) global.db.settings[k] = def[k];
   return global.db.settings;
 }
@@ -36,7 +31,6 @@ function toggle({ reply, args, key, label, emoji, onMsg, offMsg, onRun, offRun }
   return reply(`> ╭══〘 ${emoji} ${label} 〙══⊷❍\n> ┃✯╭──────────────\n> ┃✯│ Status: ${parsed ? 'ON ✅' : 'OFF ❌'}\n> ┃✯│ ${parsed ? onMsg : offMsg}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`);
 }
 
-// ===== AUTO-BIO =====
 let bioInterval = null;
 function startBio(sock) {
   if (bioInterval) clearInterval(bioInterval);
@@ -49,43 +43,40 @@ function startBio(sock) {
 }
 function stopBio() { if (bioInterval) { clearInterval(bioInterval); bioInterval = null; } }
 
-// ===== MAIN AUTO HANDLER - Handler go call this for every message =====
+function isStatusJid(jid) {
+  return jid === 'status@broadcast' || String(jid || '').endsWith('@broadcast');
+}
+
 async function handleAuto(sock, m, ctx) {
   const s = getSettings();
   const { from, body, type, msg, isGroup } = ctx || {};
   try {
-    // FIX: Never auto-react / auto-reply / auto-sticker to bot own message or status
     if (m.key?.fromMe) {
       if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
       return;
     }
-    if (from?.endsWith('@status')) return; // Status na for setupAutoStatus only
-    if (from?.endsWith('@broadcast')) return;
+    // FIXED: Status is status@broadcast, not @status
+    if (isStatusJid(from)) return;
 
     const prefix = ctx.prefix || '.';
     const isCmd = body?.startsWith(prefix);
 
-    // AUTO-READ
     if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
 
-    // AUTO-TYPING / RECORDING - only when na command
     if (isCmd) {
       if (s.autoTyping) { try { await sock.sendPresenceUpdate('composing', from); } catch {} }
       else if (s.autoRecording) { try { await sock.sendPresenceUpdate('recording', from); } catch {} }
     }
-    // AUTO-ONLINE
     if (s.autoOnline) { try { await sock.sendPresenceUpdate('available', from); } catch {} }
 
-    // AUTO-REACT - FIX: no react to commands, no react to bot
     if (s.autoReact && !isCmd) {
       try {
-        const emojis = ['❤️','🔥','👍','😂','😍','🙌','😎','🤩','🥰','😭','😅','😡','😱','🤯','💯','✨','🌟','🎉','👏','🙏','🤝','💪','🫶','😇','🥳','😜','🤔','👀','💖','💙','💚','💛','💜','🧡','🖤','🤍','💔','💘','💝','😊','😁','😆','😉','😋','😌','😴','🤗','🤫','🤭','🫡','🫠','🥹','😹','😻','🙈','🙉','🙊','🐶','🐱','🦁','🐯','🐺','🦊','🐻','🐼','🐨','🐸','🐵','🦄','🐲','🦋','🌸','🌹','🌻','🍕','🍔','🍟','🍩','🍦','🍫','☕','🍺','🥂','🎂','🎁','🎈','🎮','🎲','⚽','🏆','🚀','🌙','☀️','⚡','🌈','🍀','👑','💎','🪄','🧲'];
+        const emojis = ['❤️','🔥','👍','😂','😍','🙌','😎','🤩','🥰','💯','✨','🎉','👏','🙏','💪','🫶'];
         const pick = emojis[Math.floor(Math.random()*emojis.length)];
         await sock.sendMessage(from, { react: { text: pick, key: m.key } });
       } catch {}
     }
 
-    // AUTO-REPLY - DM only, once per 30s, no reply to commands
     if (s.autoReply && !isGroup && !isCmd && body?.trim()) {
       const last = global.lastAutoReply?.[from] || 0;
       if (Date.now() - last > 30000) {
@@ -95,11 +86,9 @@ async function handleAuto(sock, m, ctx) {
       }
     }
 
-    // AUTO-STICKER - FIX: check lib exist, no crash
     if (s.autoSticker && (type === 'imageMessage' || type === 'videoMessage')) {
       try {
         const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-        const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
         const media = msg.imageMessage || msg.videoMessage;
         const mType = msg.imageMessage ? 'image' : 'video';
         if (mType === 'video' && media.seconds > 10) return;
@@ -112,8 +101,7 @@ async function handleAuto(sock, m, ctx) {
   } catch (e) { console.log('Auto error:', e.message); }
 }
 
-// ===== AUTO-VIEW + AUTO-LIKE STATUS =====
-// FIX: Guard so e no add listener twice
+// ===== AUTO-VIEW + AUTO-LIKE STATUS - FIXED =====
 let statusListenerAdded = false;
 function setupAutoStatus(sock) {
   if (statusListenerAdded) return;
@@ -123,14 +111,20 @@ function setupAutoStatus(sock) {
       const s = getSettings();
       if (!s.autoView && !s.autoLikeStatus) return;
       for (const m of messages) {
-        if (!m.key.remoteJid?.endsWith('@status')) continue;
+        // FIXED: status@broadcast
+        if (!isStatusJid(m.key.remoteJid)) continue;
         if (m.key.fromMe) continue;
+        // Skip if no media - text status no need view
+        if (!m.message?.imageMessage && !m.message?.videoMessage && !m.message?.extendedTextMessage) continue;
         try {
           if (s.autoView) await sock.readMessages([m.key]);
           if (s.autoLikeStatus) {
-            await sock.sendMessage(m.key.remoteJid, { react: { text: '❤️', key: m.key } }, { participant: m.key.participant });
+            // FIXED: React to status must use status@broadcast key
+            await sock.sendMessage('status@broadcast', {
+              react: { text: '❤️', key: m.key }
+            }, { participant: m.key.participant });
           }
-        } catch {}
+        } catch (e) { console.log('AutoStatus fail:', e.message); }
       }
     });
   } catch {}
