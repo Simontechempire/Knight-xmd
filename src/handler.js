@@ -51,8 +51,6 @@ function loadDB() {
     global.db.warnings ||= {};
     global.db.settings ||= {};
     global.db.anti ||= {};
-    // ✅ REMOVED: No more global mode/prefix overwrite - each session get him own
-    // Old code here dey cause David prefix to change yours. We no touch global again.
   } catch (error) {
     console.error('[DB] Could not load database:', error.message);
   }
@@ -150,7 +148,6 @@ function getMessageText(message) {
   return candidates.find(value => typeof value === 'string') || '';
 }
 
-// ✅ CHANGED: 4th argument = sessionSettings from connection.js
 async function handleMessage(sock, update, botNumber, sessionSettings) {
   for (const message of update?.messages || []) {
     if (!message?.message || !message.key?.remoteJid) continue;
@@ -165,20 +162,13 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
     const botJid = sock.user?.id || '';
     const botNum = cleanNum(botNumber || botJid);
 
-    // ===== ✅ ADDED: THIS SESSION OWN SETTINGS =====
-    // If connection.js no pass am, fallback to sock.sessionSettings or global getSessionSettings
     const sess = sessionSettings || sock.sessionSettings || (global.getSessionSettings ? global.getSessionSettings(botNum) : null) || {};
     const sessionPrefix = sess.prefix || config.prefix || '.';
     const sessionMode = sess.mode || config.mode || 'public';
-    // ✅ Owner = who pair this session. NOT global creator.
     const sessionOwner = cleanNum(sess.owner || sess.creatorNumber || botNum);
-    // For this session, creator = owner. So David no be your creator.
     const creatorNum = sessionOwner;
 
-    // ✅ ADDED: THIS SESSION OWN DB
     const sessionDB = loadSessionDB(botNum);
-    // Keep global.db for old plugins wey still use am, but point am to session DB for this message
-    // So anti/auto wey read global.db go read this session own data
     const prevGlobalDB = global.db;
     global.db = sessionDB;
 
@@ -222,7 +212,6 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
 
     const isCreator = Boolean(creatorNum && senderNum === creatorNum);
     const isSessionOwner = Boolean(botNum && senderNum === botNum);
-    // ✅ CHANGED: isOwner = na session owner only. David no fit be owner for your bot.
     const isOwner = isCreator || isSessionOwner;
 
     if (isGroup && antiPlugin?.cacheMessage) {
@@ -232,12 +221,23 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
         console.error('[ANTI-DELETE] Cache failed:', error.message);
       }
     }
-    // Auto plugins - anticorruption
-for (const p of plugins) {
-  if (p.all && p.groupOnly) {
-    await p.run({ sock, m, from, sender, sessionDB, reply, args, text }).catch(()=>{});
-  }
-}
+
+    // ✅ FIXED: Auto plugins - use real variables, no undefined m/reply/args/text
+    // Old code use m, reply, args, text wey no exist here -> crash
+    if (isGroup) {
+      for (const p of plugins) {
+        if (p.all && p.groupOnly) {
+          try {
+            await p.run({
+              sock, m: message, from, sender, senderNum,
+              sessionDB, db: sessionDB,
+              args: [], text: body, body,
+              reply: async (content) => sock.sendMessage(from, { text: String(content) }, { quoted: message })
+            });
+          } catch (e) { console.log('[AUTO PLUGIN]', e.message); }
+        }
+      }
+    }
 
     if (isGroup && antiPlugin?.handleAnti) {
       try {
@@ -255,7 +255,6 @@ for (const p of plugins) {
       }
     }
 
-    // ✅ CHANGED: Banned check use session DB + session prefix
     if (sessionDB.banned.includes(senderNum) && !isOwner) {
       if (body.startsWith(sessionPrefix)) {
         await sock.sendMessage(from, {
@@ -295,7 +294,6 @@ for (const p of plugins) {
     });
     if (!plugin) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
 
-    // ✅ CHANGED: Use session mode, not global mode
     if ((sessionMode === 'private' || sessionMode === 'self') && !isOwner) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
     if (plugin.ownerOnly && !isOwner) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
     if (plugin.creatorOnly && !isCreator) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
@@ -309,8 +307,6 @@ for (const p of plugins) {
       continue;
     }
 
-    // ✅ CHANGED: sessionConfig = config copy but with this session prefix/mode/owner
-    // Plugins wey use config.prefix go get correct prefix for this bot only
     const sessionConfig = { ...config, prefix: sessionPrefix, mode: sessionMode, creatorNumber: sessionOwner, creator: sessionOwner };
 
     const context = {
@@ -319,11 +315,10 @@ for (const p of plugins) {
       groupMetadata: groupMeta, groupMeta, args, text, body,
       quoted: message.message.extendedTextMessage?.contextInfo?.quotedMessage,
       type: messageType, tiny: value => String(value),
-      config: sessionConfig, // ✅ per-session config
-      sessionSettings: sess, // ✅ plugins fit use am to save prefix
-      sessionDB, // ✅ per-session DB
+      config: sessionConfig,
+      sessionSettings: sess,
+      sessionDB,
       db: sessionDB,
-      // ✅ Helper for setprefix / setmode plugins: save to only this session file
       saveSession: (newSettings) => {
         const merged = { ...sess, ...newSettings, owner: sessionOwner };
         if (global.saveSessionSettings) global.saveSessionSettings(botNum, merged);
@@ -345,7 +340,6 @@ for (const p of plugins) {
       console.error(`[CMD] ${commandName} failed:`, error.stack || error.message);
       await sock.sendMessage(from, { text: `❌ Command failed: ${error.message}` }, { quoted: message });
     }
-    // Save session DB after command (for ban/warn etc)
     saveSessionDB(botNum, sessionDB);
     global.db = prevGlobalDB;
   }
@@ -365,9 +359,11 @@ function setupAntiDelete(sock) {
     }
   });
 }
-// In handler.js after sock connected:
-const wlc = require('./plugins/welcome.js');
-if (wlc.attachEngine) wlc.attachEngine(sock);
+
+// ✅ FIXED: REMOVED the bad top-level wlc lines wey dey crash start
+// Old: const wlc = require('./plugins/welcome.js'); wlc.attachEngine(sock);
+// That sock no exist + path wrong. Deleted.
+
 function setupParticipantUpdates(sock) {
   if (!sock?.ev || sock.__antiParticipantHandlerAttached) return;
   sock.__antiParticipantHandlerAttached = true;
@@ -384,7 +380,8 @@ function setupHandlers(sock) {
   setupAntiDelete(sock);
   setupParticipantUpdates(sock);
   try {
-    const wlc = require('../plugins/wlc');
+    // ✅ FIXED: File na welcome.js, no be wlc.js
+    const wlc = require('../plugins/welcome');
     if (wlc.attachEngine) wlc.attachEngine(sock);
   } catch {}
   try { autoPlugin?.restoreAuto?.(sock); }
