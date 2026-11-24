@@ -24,6 +24,52 @@ if (!global.db.anti) global.db.anti = {};
 if (!global.db.settings) global.db.settings = {};
 if (!global.botStart) global.botStart = Date.now();
 
+// ===== ✅ ADDED: PER-SESSION ISOLATION - 20 DEVICES =====
+// Each paired number = him own bot, him own owner, him own prefix, him own DB
+// sessions/23480.../settings.json -> { owner: "23480...", prefix: ".", mode: "public" }
+// sessions/23490.../settings.json -> { owner: "23490...", prefix: ".", mode: "public" }
+// If David change him prefix to "!", na only him file go change. Yours go remain ".".
+
+function getSessionSettingsPath(clean) {
+  return path.join(sessionsDir, clean, 'settings.json');
+}
+
+function loadSessionSettings(clean) {
+  try {
+    const file = getSessionSettingsPath(clean);
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      // Ensure owner always = paired number, no fit change
+      data.owner = clean;
+      if (!data.prefix) data.prefix = config.prefix || '.';
+      if (!data.mode) data.mode = config.mode || 'public';
+      return data;
+    }
+  } catch {}
+  // First time pairing - create him own settings from default config
+  const fresh = {
+    owner: clean, // ✅ Owner = who pair
+    prefix: config.prefix || '.',
+    mode: config.mode || 'public',
+    language: config.language || 'en',
+    botName: config.botName || 'Knight XMD',
+    creatorNumber: clean // ✅ For this session, creator = owner
+  };
+  try { fs.writeFileSync(getSessionSettingsPath(clean), JSON.stringify(fresh, null, 2)); } catch {}
+  return fresh;
+}
+
+function saveSessionSettings(clean, settings) {
+  try {
+    settings.owner = clean; // Never allow owner change
+    fs.writeFileSync(getSessionSettingsPath(clean), JSON.stringify(settings, null, 2));
+  } catch {}
+}
+
+// Make am available for handler.js + other files
+global.getSessionSettings = loadSessionSettings;
+global.saveSessionSettings = saveSessionSettings;
+
 // SIMON LOCK - per number
 const pairingLocks = {}; // { number: { inProgress, lastCode, lastTime } }
 
@@ -54,6 +100,10 @@ async function startBot(number) {
 
   const sessionPath = path.join(sessionsDir, clean);
   await fs.ensureDir(sessionPath);
+
+  // ✅ ADDED: Load this session own settings - NOT global config
+  const sessionSettings = loadSessionSettings(clean);
+
   const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
   let version = [2, 3000, 0];
@@ -82,12 +132,17 @@ async function startBot(number) {
 
   activeSockets[clean] = sock;
   sock.pairingCode = null;
+  // ✅ ADDED: Attach session info to socket - handler go use am
+  sock.sessionOwner = clean;
+  sock.sessionSettings = sessionSettings;
+  sock.sessionNumber = clean;
+
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (u) => {
     const { connection, lastDisconnect } = u;
     if (connection === 'open') {
-      console.log(`✅ Knight XMD ONLINE: ${clean}`);
+      console.log(`✅ Knight XMD ONLINE: ${clean} | Owner: ${clean} | Prefix: ${sessionSettings.prefix}`);
       sock.pairingCode = null;
       lock.lastCode = null;
       lock.inProgress = false;
@@ -95,7 +150,8 @@ async function startBot(number) {
         if (config.pfp && config.pfp.startsWith('http')) {
           await sock.updateProfilePicture(sock.user.id, { url: config.pfp }).catch(() => {});
         }
-        await sock.updateProfileStatus(`⚔️ Knight XMD | By ${config.creatorName} | Prefix ${config.prefix} | Type ${config.prefix}menu`).catch(() => {});
+        // ✅ ADDED: Use session prefix for status, not global
+        await sock.updateProfileStatus(`⚔️ Knight XMD | By ${config.creatorName} | Prefix ${sessionSettings.prefix} | Type ${sessionSettings.prefix}menu`).catch(() => {});
       } catch {}
     }
     if (connection === 'close') {
@@ -116,6 +172,11 @@ async function startBot(number) {
 
   sock.ev.on('messages.upsert', async (up) => {
     try {
+      // ✅ ADDED: Use session settings for autoView, not global.db
+      // Reload each time so if owner change him own prefix/mode, e go reflect immediately
+      const liveSettings = loadSessionSettings(clean);
+      sock.sessionSettings = liveSettings;
+
       if (config.autoViewStatus || global.db.settings?.autoView) {
         for (const m of up.messages) {
           if (m.key.remoteJid === 'status@broadcast') {
@@ -128,7 +189,8 @@ async function startBot(number) {
           }
         }
       }
-      await handleMessage(sock, up, clean);
+      // ✅ ADDED: Pass sessionSettings to handler - 4th argument
+      await handleMessage(sock, up, clean, liveSettings);
     } catch (e) { console.log('[UP ERROR]', e.message); }
   });
 
@@ -173,4 +235,4 @@ async function startBot(number) {
   return { success: true, message: 'Bot connected / waiting', code: null };
 }
 
-module.exports = { startBot, activeSockets };
+module.exports = { startBot, activeSockets, loadSessionSettings, saveSessionSettings };
