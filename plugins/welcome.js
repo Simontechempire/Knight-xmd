@@ -1,4 +1,7 @@
-// KNIGHT XMD - Welcome & Goodbye - FIXED - plugin.run format
+// KNIGHT XMD - Welcome & Goodbye - FIXED REAL - No demo
+// File: plugins/welcome.js
+// Fix: Engine auto-attaches on first command, no handler change needed
+
 const fs = require('fs');
 const path = require('path');
 
@@ -21,12 +24,6 @@ function setChat(jid, data) {
 }
 
 const clean = (jid) => String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-const displayNum = (p) => {
-  if (!p) return '';
-  if (typeof p === 'string') return clean(p);
-  if (p.pn) return clean(p.pn);
-  return clean(p.id);
-};
 
 function welcomeText(user, groupName, count) {
   return `╭━━━〔 ✨ NEW MEMBER ALERT 〕━━━╮\n\n   🦋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐓𝐇𝐄 𝐅𝐀𝐌𝐈𝐋𝐘 🦋\n\n  ┏━━━━━━━━━━━━━━━━━━┓\n    👤 𝐍𝐚𝐦𝐞: @${user}\n    🌸 𝐆𝐫𝐨𝐮𝐩: ${groupName}\n    💌 𝐌𝐞𝐦𝐛𝐞𝐫: ${count}\n  ┗━━━━━━━━━━━━━━━━━━┛\n\n  🎉 A fresh face, a new vibe!\n  💫 We're glad to have you here.\n\n  📌 Read the group rules.\n  🤝 Respect every member.\n  💬 Stay active and have fun.\n\n  ❤️ MAKE YOURSELF AT HOME!\n\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯`;
@@ -35,6 +32,7 @@ function goodbyeText(user, groupName) {
   return `╭━━━〔 🥀 MEMBER DEPARTURE 〕━━━╮\n\n      💔 𝐆𝐎𝐎𝐃𝐁𝐘𝐄 & 𝐓𝐀𝐊𝐄 𝐂𝐀𝐑𝐄 💔\n\n  ┏━━━━━━━━━━━━━━━━━━┓\n    👤 𝐍𝐚𝐦𝐞: @${user}\n    🌸 𝐆𝐫𝐨𝐮𝐩: ${groupName}\n  ┗━━━━━━━━━━━━━━━━━━┛\n\n  😔 Someone has left the family.\n\n  🌹 Thanks for being part of us.\n  💫 Your presence was appreciated.\n  🦋 Wishing you happiness and success.\n\n       ❤️ UNTIL WE MEET AGAIN!\n\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯`;
 }
 
+// ✅ FIXED: Attach once per sock, use real participant JID for mention
 function attachEngine(sock) {
   if (!sock || !sock.ev) return;
   if (sock.__wlcEngineLoaded) return;
@@ -46,32 +44,45 @@ function attachEngine(sock) {
       const cfg = loadDB()[jid];
       if (!cfg) return;
       if (!cfg.welcome && !cfg.goodbye) return;
+
       let groupName = 'Group', count = 0, meta = null;
       try { meta = await sock.groupMetadata(jid); groupName = meta.subject || 'Group'; count = meta.participants?.length || 0; } catch {}
+
       for (const p of update.participants || []) {
-        const part = meta?.participants?.find(x => x.id === p || clean(x.id) === clean(p) || (x.pn && clean(x.pn) === clean(p)));
-        const num = part ? displayNum(part) : clean(p);
+        // ✅ FIX: p is already full JID like 234...@s.whatsapp.net, use am direct for mention
+        const fullJid = String(p).includes('@') ? String(p) : `${clean(p)}@s.whatsapp.net`;
+        const num = clean(fullJid);
         let pp = null;
-        try { pp = await sock.profilePictureUrl(p, 'image'); } catch {}
+        try { pp = await sock.profilePictureUrl(fullJid, 'image'); } catch {}
+
         if (update.action === 'add' && cfg.welcome) {
           const txt = welcomeText(num, groupName, count);
-          try { if (pp) await sock.sendMessage(jid, { image: { url: pp }, caption: txt, mentions: [p] }); else await sock.sendMessage(jid, { text: txt, mentions: [p] }); } catch {}
+          try {
+            if (pp) await sock.sendMessage(jid, { image: { url: pp }, caption: txt, mentions: [fullJid] });
+            else await sock.sendMessage(jid, { text: txt, mentions: [fullJid] });
+          } catch (e) { console.log('[WLC SEND]', e.message); }
         }
         if ((update.action === 'remove' || update.action === 'leave') && cfg.goodbye) {
           const txt = goodbyeText(num, groupName);
-          try { if (pp) await sock.sendMessage(jid, { image: { url: pp }, caption: txt, mentions: [p] }); else await sock.sendMessage(jid, { text: txt, mentions: [p] }); } catch {}
+          try {
+            if (pp) await sock.sendMessage(jid, { image: { url: pp }, caption: txt, mentions: [fullJid] });
+            else await sock.sendMessage(jid, { text: txt, mentions: [fullJid] });
+          } catch (e) { console.log('[WLC SEND]', e.message); }
         }
       }
     } catch (e) { console.log('[WLC]', e.message); }
   });
-  console.log('[WLC] Welcome & Goodbye engine loaded ✅ - OFF by default');
+  console.log('[WLC] Welcome & Goodbye engine loaded ✅');
 }
 
 const commands = [
   {
     command: ['gcwelcome', 'welcome', 'wlc'],
+    groupOnly: true,
     adminOnly: true,
-    run: async ({ from, isGroup, reply, text, args }) => {
+    // ✅ FIX: Collect sock here, attach engine immediately
+    run: async ({ sock, from, isGroup, reply, text, args }) => {
+      if (sock) attachEngine(sock);
       if (!isGroup) return reply('❌ Only works in groups');
       const input = (text || args?.join(' ') || '').trim().toLowerCase();
       const cfg = getChat(from);
@@ -82,8 +93,11 @@ const commands = [
   },
   {
     command: ['gcgoodbye', 'goodbye'],
+    groupOnly: true,
     adminOnly: true,
-    run: async ({ from, isGroup, reply, text, args }) => {
+    // ✅ FIX: Collect sock here too
+    run: async ({ sock, from, isGroup, reply, text, args }) => {
+      if (sock) attachEngine(sock);
       if (!isGroup) return reply('❌ Only works in groups');
       const input = (text || args?.join(' ') || '').trim().toLowerCase();
       const cfg = getChat(from);
