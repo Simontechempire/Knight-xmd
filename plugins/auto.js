@@ -4,7 +4,7 @@ const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 function getSettings() {
   if (!global.db) global.db = {};
   if (!global.db.settings) global.db.settings = {};
-  const def = { autoRead: false, autoTyping: false, autoOnline: true, autoRecording: false, autoReact: false, autoReply: false, autoSticker: false, autoView: false, autoBio: false, autoLikeStatus: false };
+  const def = { autoRead: false, autoTyping: false, autoOnline: false, autoRecording: false, autoReact: false, autoReply: false, autoSticker: false, autoView: false, autoBio: false, autoLikeStatus: false };
   for (const k of Object.keys(def)) if (global.db.settings[k] === undefined) global.db.settings[k] = def[k];
   return global.db.settings;
 }
@@ -47,15 +47,16 @@ function isStatusJid(jid) {
   return jid === 'status@broadcast' || String(jid || '').endsWith('@broadcast');
 }
 
+// FIX: Throttle presence + react + sticker - no spam = no ban
+let lastOnline = 0;
+if (!global.autoReactMap) global.autoReactMap = new Map();
+if (!global.autoStickerMap) global.autoStickerMap = new Map();
+
 async function handleAuto(sock, m, ctx) {
   const s = getSettings();
   const { from, body, type, msg, isGroup } = ctx || {};
   try {
-    if (m.key?.fromMe) {
-      if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
-      return;
-    }
-    // FIXED: Status is status@broadcast, not @status
+    if (m.key?.fromMe) return;
     if (isStatusJid(from)) return;
 
     const prefix = ctx.prefix || '.';
@@ -63,18 +64,31 @@ async function handleAuto(sock, m, ctx) {
 
     if (s.autoRead) { try { await sock.readMessages([m.key]); } catch {} }
 
-    if (isCmd) {
-      if (s.autoTyping) { try { await sock.sendPresenceUpdate('composing', from); } catch {} }
-      else if (s.autoRecording) { try { await sock.sendPresenceUpdate('recording', from); } catch {} }
+    // FIX 1: autoOnline - throttle 60s, no chatId for 'available'
+    if (s.autoOnline && Date.now() - lastOnline > 60000) {
+      lastOnline = Date.now();
+      try { await sock.sendPresenceUpdate('available'); } catch {}
     }
-    if (s.autoOnline) { try { await sock.sendPresenceUpdate('available', from); } catch {} }
 
-    if (s.autoReact && !isCmd) {
+    // FIX 5: Typing / Recording - show then paused after 2s, no hang
+    if (isCmd && (s.autoTyping || s.autoRecording)) {
       try {
-        const emojis = ['❤️','🔥','👍','😂','😍','🙌','😎','🤩','🥰','💯','✨','🎉','👏','🙏','💪','🫶'];
-        const pick = emojis[Math.floor(Math.random()*emojis.length)];
-        await sock.sendMessage(from, { react: { text: pick, key: m.key } });
+        await sock.sendPresenceUpdate(s.autoTyping ? 'composing' : 'recording', from);
+        setTimeout(() => sock.sendPresenceUpdate('paused', from).catch(() => {}), 2000);
       } catch {}
+    }
+
+    // FIX 2: AutoReact - DM only + 1 react per chat per 60s
+    if (s.autoReact && !isCmd && !isGroup) {
+      const last = global.autoReactMap.get(from) || 0;
+      if (Date.now() - last > 60000) {
+        global.autoReactMap.set(from, Date.now());
+        try {
+          const emojis = ['❤️','🔥','👍','😂','😍','🙌','😎','🤩','🥰','💯','✨','🎉','👏','🙏','💪','🫶'];
+          const pick = emojis[Math.floor(Math.random()*emojis.length)];
+          await sock.sendMessage(from, { react: { text: pick, key: m.key } });
+        } catch {}
+      }
     }
 
     if (s.autoReply && !isGroup && !isCmd && body?.trim()) {
@@ -86,7 +100,11 @@ async function handleAuto(sock, m, ctx) {
       }
     }
 
-    if (s.autoSticker && (type === 'imageMessage' || type === 'videoMessage')) {
+    // FIX 3: AutoSticker - DM only + cooldown, no group spam
+    if (s.autoSticker && !isGroup && (type === 'imageMessage' || type === 'videoMessage')) {
+      const last = global.autoStickerMap.get(from) || 0;
+      if (Date.now() - last < 10000) return;
+      global.autoStickerMap.set(from, Date.now());
       try {
         const { Sticker, StickerTypes } = require('wa-sticker-formatter');
         const media = msg.imageMessage || msg.videoMessage;
@@ -102,27 +120,25 @@ async function handleAuto(sock, m, ctx) {
 }
 
 // ===== AUTO-VIEW + AUTO-LIKE STATUS - FIXED =====
-let statusListenerAdded = false;
 function setupAutoStatus(sock) {
-  if (statusListenerAdded) return;
-  statusListenerAdded = true;
+  // FIX 4: Per-sock flag, no be global - reconnect go re-attach
+  if (!sock || sock.__autoStatusAttached) return;
+  sock.__autoStatusAttached = true;
   try {
     sock.ev.on('messages.upsert', async ({ messages }) => {
       const s = getSettings();
       if (!s.autoView && !s.autoLikeStatus) return;
       for (const m of messages) {
-        // FIXED: status@broadcast
         if (!isStatusJid(m.key.remoteJid)) continue;
         if (m.key.fromMe) continue;
-        // Skip if no media - text status no need view
         if (!m.message?.imageMessage && !m.message?.videoMessage && !m.message?.extendedTextMessage) continue;
         try {
           if (s.autoView) await sock.readMessages([m.key]);
           if (s.autoLikeStatus) {
-            // FIXED: React to status must use status@broadcast key
+            // FIX: Status react - key must carry participant, send to status@broadcast
             await sock.sendMessage('status@broadcast', {
-              react: { text: '❤️', key: m.key }
-            }, { participant: m.key.participant });
+              react: { text: '❤️', key: { ...m.key, remoteJid: 'status@broadcast', participant: m.key.participant } }
+            });
           }
         } catch (e) { console.log('AutoStatus fail:', e.message); }
       }
@@ -141,9 +157,9 @@ const commands = [
   { command: ['autotyping'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoTyping', label: 'AUTO-TYPING', emoji: '⌨️', onMsg: 'Bot will show typing... on every chat', offMsg: 'Typing indicator off' }) },
   { command: ['autoonline'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoOnline', label: 'AUTO-ONLINE', emoji: '🟢', onMsg: 'Bot will always appear online', offMsg: 'Bot will appear offline when idle' }) },
   { command: ['autorecording'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoRecording', label: 'AUTO-RECORDING', emoji: '🎙️', onMsg: 'Bot will show recording... on every chat', offMsg: 'Recording indicator off' }) },
-  { command: ['autoreact'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoReact', label: 'AUTO-REACT', emoji: '❤️', onMsg: 'Bot will auto react to messages', offMsg: 'Auto react off' }) },
+  { command: ['autoreact'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoReact', label: 'AUTO-REACT', emoji: '❤️', onMsg: 'Bot will auto react to messages (DM only)', offMsg: 'Auto react off' }) },
   { command: ['autoreply'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoReply', label: 'AUTO-REPLY', emoji: '💬', onMsg: 'Bot will reply Hi + menu to new DM', offMsg: 'Auto reply off' }) },
-  { command: ['autosticker'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoSticker', label: 'AUTO-STICKER', emoji: '🏷️', onMsg: 'All images/videos will become sticker', offMsg: 'Auto sticker off' }) },
+  { command: ['autosticker'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoSticker', label: 'AUTO-STICKER', emoji: '🏷️', onMsg: 'DM images/videos will become sticker', offMsg: 'Auto sticker off' }) },
   { command: ['autoview'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoView', label: 'AUTO-VIEW STATUS', emoji: '👁️', onMsg: 'Bot will auto view all status', offMsg: 'Status view off' }) },
   { command: ['autobio'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoBio', label: 'AUTO-BIO', emoji: '📝', onMsg: 'Bio will update every 60s with time', offMsg: 'Bio will not update again', onRun: () => startBio(ctx.sock), offRun: () => stopBio() }) },
   { command: ['autolikestatus'], ownerOnly: true, run: async (ctx) => toggle({ ...ctx, key: 'autoLikeStatus', label: 'AUTO-LIKE STATUS', emoji: '💖', onMsg: 'Bot will auto like all status', offMsg: 'Auto like off' }) },
@@ -156,16 +172,26 @@ const commands = [
       await reply(`> ╭══〘 ⚙️ AUTO STATUS 〙══⊷❍\n> ┃✯╭──────────────\n${line('AutoRead', s.autoRead)}\n${line('AutoTyping', s.autoTyping)}\n${line('AutoOnline', s.autoOnline)}\n${line('AutoRecording', s.autoRecording)}\n${line('AutoReact', s.autoReact)}\n${line('AutoReply', s.autoReply)}\n${line('AutoSticker', s.autoSticker)}\n${line('AutoView Status', s.autoView)}\n${line('AutoBio', s.autoBio)}\n${line('AutoLike Status', s.autoLikeStatus)}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`);
     }
   },
+  // FIX 6: Split autoon / autooff - no rely on ctx.command
   {
-    command: ['autoall', 'autoon', 'autooff'],
+    command: ['autoall', 'autoon'],
     ownerOnly: true,
-    run: async ({ reply, command }) => {
+    run: async ({ reply }) => {
       const s = getSettings();
-      const val = command === 'autooff' ? false : true;
-      ['autoRead','autoTyping','autoRecording','autoReact','autoReply','autoSticker','autoView','autoLikeStatus'].forEach(k => s[k] = val);
-      if (!val) stopBio(); s.autoBio = false;
+      ['autoRead','autoTyping','autoRecording','autoReact','autoReply','autoSticker','autoView','autoLikeStatus'].forEach(k => s[k] = true);
       if (global.dbSave) global.dbSave();
-      await reply(val ? '✅ All auto ON (except Bio)' : '❌ All auto OFF');
+      await reply('✅ All auto ON (except Bio)');
+    }
+  },
+  {
+    command: ['autooff'],
+    ownerOnly: true,
+    run: async ({ reply }) => {
+      const s = getSettings();
+      ['autoRead','autoTyping','autoRecording','autoReact','autoReply','autoSticker','autoView','autoLikeStatus'].forEach(k => s[k] = false);
+      stopBio(); s.autoBio = false;
+      if (global.dbSave) global.dbSave();
+      await reply('❌ All auto OFF');
     }
   },
 ];
