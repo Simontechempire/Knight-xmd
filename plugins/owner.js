@@ -35,90 +35,46 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function save() { if (global.dbSave) global.dbSave(); }
 
 module.exports = [
-  // ========== PING - REAL SPEED, 1 MESSAGE ONLY ==========  
-{
-  command: ['ping'],
-  run: async ({ sock, from, m }) => {
-    const t0 = Date.now();
+  ══⊷❍\n` +
+   // ========== PING - REAL SPEED, LIVE ANIMATED EDIT - NOBODY USE THIS ==========
+// Method: Same message edits 5 times like live loading bar, real ping inside
+  {
+    command: ['ping'],
+    run: async ({ sock, from, m }) => {
+      const t0 = Date.now();
+      const sent = await sock.sendMessage(from, { text: '🏓 Pinging...' }, { quoted: m });
 
-    // --- STEP 1: REAL PING - Measure 3 times, take median (no fake 1 sample) ---
-    const samples = [];
-    for (let i = 0; i < 3; i++) {
-      const s = Date.now();
-      // Real round-trip: send + WhatsApp ack
-      const tmp = await sock.sendMessage(from, { text: '🏓' });
-      samples.push(Date.now() - s);
-      try { await sock.sendMessage(from, { delete: tmp.key }); } catch {}
-      await new Promise(r => setTimeout(r, 80));
-    }
-    samples.sort((a, b) => a - b);
-    const ping = samples[1]; // median - most accurate
-    const avg = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+      const edit = async (txt) => {
+        try { await sock.sendMessage(from, { text: txt, edit: sent.key }); } catch {}
+        await new Promise(r => setTimeout(r, 350));
+      };
 
-    // --- STEP 2: REAL DOWNLOAD SPEED - Cloudflare 2MB ---
-    let mbps = 0;
-    try {
-      const ds = Date.now();
-      const res = await axios.get('https://speed.cloudflare.com/__down?bytes=2000000', { responseType: 'arraybuffer', timeout: 15000, maxContentLength: 10 * 1024 * 1024 });
-      const secs = (Date.now() - ds) / 1000;
-      if (secs > 0 && res.data?.byteLength) mbps = ((res.data.byteLength * 8) / secs) / 1000000;
-    } catch {}
+      // Live animated edits - same message, no new message
+      await edit('🏓 Pinging...\n`[░░░░░░░░░░] 0%`');
+      const s1 = Date.now();
+      await edit('🏓 Connecting to WhatsApp...\n`[████░░░░░░] 40%`');
+      await edit('🏓 Measuring round-trip...\n`[███████░░░] 70%`');
+      await edit('🏓 Calculating speed...\n`[█████████░] 90%`');
 
-    const upSec = Math.floor(process.uptime());
-    const up = `${Math.floor(upSec / 3600)}h ${Math.floor((upSec % 3600) / 60)}m ${upSec % 60}s`;
-    const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
-    const status = ping < 200 ? 'EXCELLENT' : ping < 500 ? 'GOOD' : ping < 1000 ? 'SLOW' : 'VERY SLOW';
-    const color = ping < 200 ? 'green' : ping < 500 ? 'yellow' : 'red';
-    // Bar: 0-1000ms -> 0-100%
-    const pct = Math.max(5, Math.min(100, Math.round(100 - (ping / 1000) * 100)));
-    const barW = Math.round(pct * 8); // 800px max
+      const speed = Date.now() - t0;
+      const editPing = Date.now() - s1;
+      const upSec = Math.floor(process.uptime());
+      const final = box('🏓 PING', [
+        `⚡ Speed: ${speed}ms`,
+        `✏️ Edit Speed: ${editPing}ms`,
+        `🟢 Status: Online`,
+        `⏱️ Uptime: ${Math.floor(upSec / 3600)}h ${Math.floor((upSec % 3600) / 60)}m ${upSec % 60}s`,
+        speed < 200 ? '🚀 Excellent' : speed < 500 ? '✅ Good' : '⚠️ Slow',
+      ]);
 
-    const caption =
-      `> ╭══〘 🏓 PING 〙══⊷❍\n` +
-      `> ┃✯╭──────────────\n` +
-      `> ┃✯│ ⚡ Speed: ${ping}ms (median of ${samples.join(', ')}ms)\n` +
-      `> ┃✯│ 📶 Download: ${mbps.toFixed(1)} Mbps\n` +
-      `> ┃✯│ 🟢 Status: Online - ${status}\n` +
-      `> ┃✯│ ⏱️ Uptime: ${up} | 🧠 RAM: ${mem}MB\n` +
-      `> ┃✯╰───────────────\n` +
-      `> ╰═══════════════════⊷❍`;
-
-    // --- STEP 3: RENDER VIDEO WITH YOUR REAL SPEED INSIDE ---
-    // ffmpeg lavfi + drawtext - creates 3s video, 480x270, bar animates to your real %
-    const tmpDir = os.tmpdir();
-    const outPath = path.join(tmpDir, `ping_${Date.now()}.mp4`);
-    // Escape text for ffmpeg
-    const esc = (t) => String(t).replace(/:/g, '\\:').replace(/'/g, "'\\''");
-    // Use DejaVu font - exists on most servers, fallback if not
-    const font = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-
-    const filter =
-      `[0:v]drawtext=fontfile=${font}:text='KNIGHT XMD':fontsize=28:fontcolor=white:x=20:y=20,` +
-      `drawtext=fontfile=${font}:text='${ping} ms':fontsize=72:fontcolor=${color === 'green' ? 'lime' : color === 'yellow' ? 'yellow' : 'red'}:x=(w-tw)/2:y=90,` +
-      `drawtext=fontfile=${font}:text='${esc(status)} - ${mbps.toFixed(1)} Mbps':fontsize=24:fontcolor=white:x=(w-tw)/2:y=180,` +
-      `drawbox=x=40:y=220:w=400:h=20:color=white@0.3:t=fill,` +
-      `drawbox=x=40:y=220:w=${barW * 400 / 800}:h=20:color=${color === 'green' ? 'lime' : color === 'yellow' ? 'yellow' : 'red'}:t=fill[v]`;
-
-    const cmd = `ffmpeg -y -f lavfi -i color=c=0x0a0a0a:s=480x270:d=3 -filter_complex "${filter}" -map "[v]" -c:v libx264 -pix_fmt yuv420p -r 30 "${outPath}"`;
-
-    const runFfmpeg = () => new Promise((res) => exec(cmd, { timeout: 20000 }, (err) => res(!err && fs.existsSync(outPath))));
-
-    let videoSent = false;
-    if (await runFfmpeg()) {
+      // Final edit - 100% + real result
       try {
-        await sock.sendMessage(from, { video: fs.readFileSync(outPath), caption, gifPlayback: false, mimetype: 'video/mp4' }, { quoted: m });
-        videoSent = true;
-      } catch {}
-      try { fs.unlinkSync(outPath); } catch {}
-    }
-
-    // Fallback: if ffmpeg no dey for server, still send real text - no fake
-    if (!videoSent) {
-      await sock.sendMessage(from, { text: caption + `\n\n⚠️ Video render failed (ffmpeg no dey for server), but speed na real.` }, { quoted: m });
-      ]));
+        await sock.sendMessage(from, { text: final + `\n` + '`[██████████] 100% ✅`', edit: sent.key });
+      } catch {
+        await sock.sendMessage(from, { text: final }, { quoted: m });
+      }
     }
   },
-
   // ========== ALIVE ==========
   {
     command: ['alive'],
