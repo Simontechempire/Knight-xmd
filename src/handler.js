@@ -232,6 +232,12 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
         console.error('[ANTI-DELETE] Cache failed:', error.message);
       }
     }
+    // Auto plugins - anticorruption
+for (const p of plugins) {
+  if (p.all && p.groupOnly) {
+    await p.run({ sock, m, from, sender, sessionDB, reply, args, text }).catch(()=>{});
+  }
+}
 
     if (isGroup && antiPlugin?.handleAnti) {
       try {
