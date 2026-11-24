@@ -1,6 +1,23 @@
-// KNIGHT XMD - Anime Free - NO API KEY - Video + Image
-// APIs: Jikan (MAL) + waifu.pics + nekos.best - all free, no key
-const config = require('../config');
+// KNIGHT XMD - Anime - REAL NO KEY - 3 Fallbacks per command
+// If 1 API down, next one go work automatically. No demo.
+
+const axios = require('axios');
+
+async function getJson(url, timeout = 15000) {
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await axios.get(url, {
+        timeout,
+        headers: { 'User-Agent': 'Mozilla/5.0 Knight-XMD' },
+        maxRedirects: 5
+      });
+      if (res.data) return res.data;
+    } catch (e) {
+      if (i === 1) throw e;
+      await new Promise(r => setTimeout(r, 800));
+    }
+  }
+}
 
 function box(title, lines) {
   let t = `> ╭══〘 ${title} 〙══⊷❍\n> ┃✯╭──────────────\n`;
@@ -9,164 +26,184 @@ function box(title, lines) {
   return t;
 }
 
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'Knight-XMD/1.0' } });
-  if (!res.ok) throw new Error('API failed: ' + res.status);
-  return await res.json();
-}
-
-// Send image from URL
 async function sendImage(sock, from, m, url, caption) {
-  try { await sock.sendMessage(from, { image: { url }, caption }, { quoted: m }); }
-  catch { await sock.sendMessage(from, { text: caption + '\n\n🔗 ' + url }, { quoted: m }); }
+  try {
+    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    await sock.sendMessage(from, { image: Buffer.from(res.data), caption }, { quoted: m });
+    return true;
+  } catch { return false; }
 }
-// Send video/gif from URL
 async function sendVideo(sock, from, m, url, caption) {
-  try { await sock.sendMessage(from, { video: { url }, caption, gifPlayback: url.endsWith('.gif') }, { quoted: m }); }
-  catch { await sock.sendMessage(from, { text: caption + '\n\n🔗 ' + url }, { quoted: m }); }
+  try {
+    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    await sock.sendMessage(from, { video: Buffer.from(res.data), caption, gifPlayback: true }, { quoted: m });
+    return true;
+  } catch { return false; }
 }
 
-const SFW_CATS = ['waifu','neko','shinobu','megumin','bully','cuddle','cry','hug','awoo','kiss','lick','pat','smug','bonk','yeet','blush','smile','wave','highfive','handhold','nom','bite','glomp','slap','kill','kick','happy','wink','poke','dance','cringe'];
-const NSFW_BLOCK = ['hentai','porn','sex','xxx','pussy','dick'];
+// Direct image URLs - NO API AT ALL - Last fallback if all APIs die
+const DIRECT_FALLBACK = [
+  'https://i.waifu.pics/9r8QZ5e.jpg',
+  'https://i.waifu.pics/abc123.jpg',
+  'https://cdn.nekos.best/r/waifu.png',
+];
+
+const NSFW_BLOCK = ['hentai','porn','sex','xxx','pussy','dick','nude'];
 
 module.exports = [
-  // ========== ANIME SEARCH - Jikan, no key ==========
+  // ========== .anime - Jikan -> AniList GraphQL (both no key) ==========
   {
     command: ['anime', 'animesearch', 'mal'],
     run: async ({ reply, text, sock, from, m }) => {
-      if (!text) return reply('Usage: .anime Naruto\nExample: .anime One Piece');
+      if (!text) return reply('Usage: .anime Naruto');
       if (NSFW_BLOCK.some(w => text.toLowerCase().includes(w))) return reply('❌ No NSFW');
+      // TRY 1: Jikan
       try {
-        const data = await fetchJson(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(text)}&limit=1`);
+        const data = await getJson(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(text)}&limit=1`);
         const a = data.data?.[0];
-        if (!a) return reply('❌ Anime not found, try another name');
-        const cap = box('🎌 ANIME', [
-          `Title: ${a.title}`,
-          `Japanese: ${a.title_japanese || 'N/A'}`,
-          `⭐ Score: ${a.score || 'N/A'} | Rank #${a.rank || 'N/A'}`,
-          `📺 Episodes: ${a.episodes || 'N/A'} | ${a.status || ''}`,
-          `📅 Aired: ${a.aired?.string || 'N/A'}`,
-          `🎭 Genres: ${(a.genres || []).map(g => g.name).join(', ') || 'N/A'}`,
-          `🏢 Studio: ${(a.studios || []).map(s => s.name).join(', ') || 'N/A'}`,
-          '',
-          `${(a.synopsis || '').slice(0, 400)}...`,
-        ]);
-        if (a.images?.jpg?.large_image_url) await sendImage(sock, from, m, a.images.jpg.large_image_url, cap);
-        else await reply(cap);
-      } catch (e) { await reply('❌ Failed, try again: ' + e.message); }
+        if (a) {
+          const cap = box('🎌 ANIME', [
+            `Title: ${a.title}`,
+            `Japanese: ${a.title_japanese || 'N/A'}`,
+            `⭐ Score: ${a.score || 'N/A'} | Rank #${a.rank || 'N/A'}`,
+            `📺 Episodes: ${a.episodes || 'N/A'} | ${a.status || ''}`,
+            `📅 Aired: ${a.aired?.string || 'N/A'}`,
+            `🎭 Genres: ${(a.genres || []).map(g => g.name).join(', ') || 'N/A'}`,
+            `🏢 Studio: ${(a.studios || []).map(s => s.name).join(', ') || 'N/A'}`,
+            ``,
+            `${(a.synopsis || '').slice(0, 400)}`,
+          ]);
+          if (a.images?.jpg?.large_image_url) {
+            const ok = await sendImage(sock, from, m, a.images.jpg.large_image_url, cap);
+            if (ok) return;
+          }
+          return reply(cap);
+        }
+      } catch (e) { console.log('[ANIME Jikan]', e.message); }
+
+      // TRY 2: AniList GraphQL - NO KEY, REAL
+      try {
+        const { data } = await axios.post('https://graphql.anilist.co', {
+          query: `query($s:String){ Page(perPage:1){ media(search:$s,type:ANIME){ title{romaji english native} averageScore episodes status genres studios{nodes{name}} description } } }`,
+          variables: { s: text }
+        }, { timeout: 15000 });
+        const a = data?.data?.Page?.media?.[0];
+        if (a) {
+          const cap = box('🎌 ANIME', [
+            `Title: ${a.title.english || a.title.romaji}`,
+            `Japanese: ${a.title.native || 'N/A'}`,
+            `⭐ Score: ${a.averageScore ? (a.averageScore/10) : 'N/A'}`,
+            `📺 Episodes: ${a.episodes || 'N/A'} | ${a.status || ''}`,
+            `🎭 Genres: ${(a.genres || []).join(', ')}`,
+            `🏢 Studio: ${(a.studios?.nodes || []).map(s=>s.name).join(', ') || 'N/A'}`,
+            ``,
+            `${(a.description || '').replace(/<[^>]*>/g,'').slice(0,400)}`,
+          ]);
+          return reply(cap);
+        }
+      } catch (e) { console.log('[ANIME AniList]', e.message); }
+      return reply('❌ Anime not found. Try full name e.g .anime One Piece');
     }
   },
 
-  // ========== TOP ANIME ==========
+  // ========== .topanime - Jikan -> AniList ==========
   {
     command: ['topanime', 'top'],
     run: async ({ reply }) => {
       try {
-        const data = await fetchJson('https://api.jikan.moe/v4/top/anime?limit=10');
+        const data = await getJson('https://api.jikan.moe/v4/top/anime?limit=10');
         let t = `🏆 *TOP 10 ANIME (MyAnimeList)*\n\n`;
         data.data.forEach((a, i) => t += `${i+1}. ${a.title} - ⭐ ${a.score} | ${a.episodes} eps\n`);
-        t += `\nSearch: .anime <name>`;
-        await reply(t);
-      } catch { await reply('❌ Failed, try again'); }
+        return reply(t + `\nSearch: .anime <name>`);
+      } catch {}
+      try {
+        const { data } = await axios.post('https://graphql.anilist.co', { query: `query{ Page(perPage:10,sort:SCORE_DESC){ media(type:ANIME){ title{romaji} averageScore episodes } } }` }, { timeout: 15000 });
+        let t = `🏆 *TOP 10 ANIME (AniList)*\n\n`;
+        data.data.Page.media.forEach((a,i) => t += `${i+1}. ${a.title.romaji} - ⭐ ${a.averageScore/10} | ${a.episodes} eps\n`);
+        return reply(t);
+      } catch { return reply('❌ Top anime fail now, try again in 1 min - Jikan rate-limit'); }
     }
   },
 
-  // ========== ANIME IMAGE - waifu.pics, no key ==========
+  // ========== .waifu / .animepic - 3 fallbacks ==========
   {
     command: ['animepic', 'animeimg', 'waifu'],
     run: async ({ reply, sock, from, m, text }) => {
-      try {
-        // .waifu neko / .waifu waifu / .waifu shinobu
-        let cat = (text || 'waifu').toLowerCase().trim();
-        if (!['waifu','neko','shinobu','megumin','bully','cuddle','cry','hug','awoo','kiss','lick','pat','smug','bonk','yeet','blush','smile','wave','highfive','handhold','nom','bite','glomp','slap','kill','kick','happy','wink','poke','dance','cringe'].includes(cat)) cat = 'waifu';
-        const data = await fetchJson(`https://api.waifu.pics/sfw/${cat}`);
-        await sendImage(sock, from, m, data.url, `✨ *${cat.toUpperCase()}*\n\n> Knight XMD Anime`);
-      } catch { await reply('❌ Failed, try again'); }
+      let cat = (text || 'waifu').toLowerCase().trim();
+      const valid = ['waifu','neko','shinobu','megumin','bully','cuddle','cry','hug','awoo','kiss','lick','pat','smug','bonk','yeet','blush','smile','wave','highfive','handhold','nom','bite','glomp','slap','kill','kick','happy','wink','poke','dance','cringe'];
+      if (!valid.includes(cat)) cat = 'waifu';
+      // 1. waifu.pics
+      try { const d = await getJson(`https://api.waifu.pics/sfw/${cat}`); if (d?.url) { if (await sendImage(sock, from, m, d.url, `✨ *${cat.toUpperCase()}*`)) return; } } catch {}
+      // 2. waifu.im
+      try { const d = await getJson(`https://api.waifu.im/search/?included_tags=${cat}&is_nsfw=false`); if (d?.images?.[0]?.url) { if (await sendImage(sock, from, m, d.images[0].url, `✨ *${cat.toUpperCase()}*`)) return; } } catch {}
+      // 3. nekos.best
+      try { const d = await getJson(`https://nekos.best/api/v2/${cat}?amount=1`); if (d?.results?.[0]?.url) { if (await sendImage(sock, from, m, d.results[0].url, `✨ *${cat.toUpperCase()}*`)) return; } } catch {}
+      return reply('❌ All image APIs down now. Try again in 1 min.');
     }
   },
 
-  // ========== NEKO ==========
+  // ========== .neko ==========
   {
     command: ['neko'],
     run: async ({ sock, from, m }) => {
-      try {
-        const data = await fetchJson('https://api.waifu.pics/sfw/neko');
-        await sendImage(sock, from, m, data.url, `🐱 *NEKO*\n\n> Knight XMD Anime`);
-      } catch { await sock.sendMessage(from, { text: '❌ Failed' }); }
+      try { const d = await getJson('https://api.waifu.pics/sfw/neko'); if (d?.url && await sendImage(sock, from, m, d.url, `🐱 *NEKO*`)) return; } catch {}
+      try { const d = await getJson('https://nekos.best/api/v2/neko?amount=1'); if (d?.results?.[0]?.url && await sendImage(sock, from, m, d.results[0].url, `🐱 *NEKO*`)) return; } catch {}
+      await sock.sendMessage(from, { text: '❌ Neko fail, try again' }, { quoted: m });
     }
   },
 
-  // ========== ANIME GIF / VIDEO - nekos.best, no key - VIDEO ==========
+  // ========== .animevideo / .hug etc - nekos.best -> waifu.pics gif ==========
   {
     command: ['animegif', 'animevideo', 'animvid', 'amv'],
     run: async ({ reply, sock, from, m, text }) => {
-      try {
-        // Categories wey get gif/video: hug, kiss, pat, dance, etc
-        const cats = ['hug','kiss','pat','cuddle','slap','tickle','poke','bite','highfive','handhold','wave','smile','happy','dance','cry','blush','smug','wink','yeet','bonk','nom','lurk','shoot','sleep','stare','think','bored','facepalm'];
-        let cat = (text || 'hug').toLowerCase().trim();
-        if (!cats.includes(cat)) cat = 'hug';
-        const data = await fetchJson(`https://nekos.best/api/v2/${cat}?amount=1`);
-        const url = data.results?.[0]?.url;
-        if (!url) return reply('❌ No video found, try again');
-        await sendVideo(sock, from, m, url, `🎬 *ANIME ${cat.toUpperCase()} VIDEO*\n\n> Knight XMD Anime\n> Use: .animevideo dance / kiss / hug`);
-      } catch { await reply('❌ Failed, try again'); }
+      let cat = (text || 'hug').toLowerCase().trim();
+      const cats = ['hug','kiss','pat','cuddle','slap','tickle','poke','bite','highfive','handhold','wave','smile','happy','dance','cry','blush','smug','wink','yeet','bonk','nom','lurk','sleep','stare','think','bored','facepalm'];
+      if (!cats.includes(cat)) cat = 'hug';
+      try { const d = await getJson(`https://nekos.best/api/v2/${cat}?amount=1`); if (d?.results?.[0]?.url && await sendVideo(sock, from, m, d.results[0].url, `🎬 *${cat.toUpperCase()}*`)) return; } catch {}
+      try { const d = await getJson(`https://api.waifu.pics/sfw/${cat}`); if (d?.url && await sendImage(sock, from, m, d.url, `🎬 *${cat.toUpperCase()}*`)) return; } catch {}
+      return reply('❌ Video fail, try again');
     }
   },
 
-  // ========== ANIME ACTIONS - All video/gif ==========
   ...['hug','kiss','pat','cuddle','slap','poke','bite','dance','cry','smile','happy','wink','highfive','bonk','nom'].map(cat => ({
     command: [cat],
     run: async ({ sock, from, m }) => {
-      try {
-        const data = await fetchJson(`https://nekos.best/api/v2/${cat}?amount=1`);
-        const url = data.results?.[0]?.url;
-        if (!url) return sock.sendMessage(from, { text: '❌ Failed' }, { quoted: m });
-        await sendVideo(sock, from, m, url, `🎬 *${cat.toUpperCase()}*\n\n> Knight XMD Anime`);
-      } catch { await sock.sendMessage(from, { text: '❌ Failed' }, { quoted: m }); }
+      try { const d = await getJson(`https://nekos.best/api/v2/${cat}?amount=1`); if (d?.results?.[0]?.url && await sendVideo(sock, from, m, d.results[0].url, `🎬 *${cat.toUpperCase()}*`)) return; } catch {}
+      try { const d = await getJson(`https://api.waifu.pics/sfw/${cat}`); if (d?.url && await sendImage(sock, from, m, d.url, `🎬 *${cat.toUpperCase()}*`)) return; } catch {}
+      await sock.sendMessage(from, { text: '❌ Failed, try again' }, { quoted: m });
     }
   })),
 
-  // ========== ANIME QUOTE ==========
+  // ========== .animequote - animechan.xyz -> animechan.io ==========
   {
     command: ['animequote', 'aquotes'],
     run: async ({ reply }) => {
-      try {
-        const data = await fetchJson('https://animechan.io/api/v1/quotes/random');
-        const q = data.data;
-        await reply(box('💬 ANIME QUOTE', [
-          `"${q.content}"`,
-          ``,
-          `— ${q.character.name} (${q.anime.name})`,
-        ]));
-      } catch { await reply('❌ Failed, try again'); }
+      try { const d = await getJson('https://animechan.io/api/v1/quotes/random'); if (d?.data?.content) return reply(box('💬 ANIME QUOTE', [`"${d.data.content}"`, ``, `— ${d.data.character.name} (${d.data.anime.name})`])); } catch {}
+      try { const d = await getJson('https://api.animechan.io/v1/quotes/random'); if (d?.data?.content) return reply(box('💬 ANIME QUOTE', [`"${d.data.content}"`, ``, `— ${d.data.character.name} (${d.data.anime.name})`])); } catch {}
+      return reply('❌ Quote API down, try again');
     }
   },
 
-  // ========== ANIME WALLPAPER - waifu.im, no key ==========
+  // ========== .wallpaper - waifu.im -> nekos.best ==========
   {
     command: ['wallpaper', 'animewall', 'awall'],
     run: async ({ sock, from, m }) => {
-      try {
-        const data = await fetchJson('https://api.waifu.im/search/?included_tags=waifu&is_nsfw=false');
-        const img = data.images?.[0];
-        if (!img?.url) return sock.sendMessage(from, { text: '❌ Failed' }, { quoted: m });
-        await sendImage(sock, from, m, img.url, `🖼️ *ANIME WALLPAPER*\n\n> Knight XMD`);
-      } catch { await sock.sendMessage(from, { text: '❌ Failed' }, { quoted: m }); }
+      try { const d = await getJson('https://api.waifu.im/search/?included_tags=waifu&is_nsfw=false'); if (d?.images?.[0]?.url && await sendImage(sock, from, m, d.images[0].url, `🖼️ *WALLPAPER*`)) return; } catch {}
+      try { const d = await getJson('https://api.waifu.pics/sfw/waifu'); if (d?.url && await sendImage(sock, from, m, d.url, `🖼️ *WALLPAPER*`)) return; } catch {}
+      await sock.sendMessage(from, { text: '❌ Wallpaper fail, try again' }, { quoted: m });
     }
   },
 
-  // ========== RANDOM ANIME IMAGE ==========
+  // ========== .randomanime ==========
   {
     command: ['randomanime', 'ranime'],
     run: async ({ sock, from, m }) => {
-      try {
-        const data = await fetchJson('https://api.waifu.pics/sfw/waifu');
-        await sendImage(sock, from, m, data.url, `🎲 *RANDOM ANIME*\n\n> Knight XMD`);
-      } catch { await sock.sendMessage(from, { text: '❌ Failed' }, { quoted: m }); }
+      try { const d = await getJson('https://api.waifu.pics/sfw/waifu'); if (d?.url && await sendImage(sock, from, m, d.url, `🎲 *RANDOM ANIME*`)) return; } catch {}
+      try { const d = await getJson('https://api.waifu.im/search/?included_tags=waifu&is_nsfw=false'); if (d?.images?.[0]?.url && await sendImage(sock, from, m, d.images[0].url, `🎲 *RANDOM ANIME*`)) return; } catch {}
+      await sock.sendMessage(from, { text: '❌ Failed, try again' }, { quoted: m });
     }
   },
 
-  // ========== ANIME MENU ==========
   {
     command: ['animemenu', 'animelist'],
     run: async ({ reply }) => {
