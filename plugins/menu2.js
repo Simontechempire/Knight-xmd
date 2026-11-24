@@ -1,9 +1,9 @@
 const config = require('../config');
-
+const config = require('../config');
 module.exports = [
 {
-  command: ['menu2', 'help2'],
-  run: async ({ reply, tiny, prefix, sock, m }) => {
+  command: ['menu2','help2'],
+  run: async ({ reply, tiny, prefix }) => { sock, m }) => {
 
     const menu = `
 ╔═══════════════════════╗
