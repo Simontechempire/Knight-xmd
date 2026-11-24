@@ -176,7 +176,14 @@ async function handleMessage(sock, update, botNumber) {
         console.error('[ANTI-DELETE] Cache failed:', error.message);
       }
     }
-
+function setupHandlers(sock) {
+  setupAntiDelete(sock);
+  setupAuto(sock);
+  try {
+    const wlc = require('../plugins/wlc');
+    if (wlc.attachEngine) wlc.attachEngine(sock);
+  } catch {}
+  }
     if (isGroup && antiPlugin?.handleAnti) {
       try {
         const blocked = await antiPlugin.handleAnti(sock, message, {
