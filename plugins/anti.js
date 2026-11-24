@@ -1,4 +1,4 @@
-// KNIGHT XMD - Anti System - REAL - No Demo, No Placeholder
+// KNIGHT XMD - Anti System - REAL - No Demo, No Placeholder - FIXED
 // By Faceless Tech - Real media cache, real join kick, real delete recovery
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
@@ -83,115 +83,137 @@ async function getRealNum(sock, from, senderJid) {
   } catch { return clean(senderJid); }
 }
 
-async function handleAnti(sock, m, ctx) {
-  const { from, sender, senderNum, isGroup, isOwner, isAdmin, isBotAdmin, body, type, msg } = ctx;
-  if (!isGroup) return false;
-  if (isOwner || isAdmin) return false;
-  if (!body && type !== 'stickerMessage' && type !== 'imageMessage' && type !== 'videoMessage') return false;
+// FIX 1: ctx fit be undefined - derive everything from m if handler no pass ctx
+async function handleAnti(sock, m, ctx = {}) {
+  try {
+    const from = ctx.from || m.key?.remoteJid;
+    const sender = ctx.sender || m.key?.participant || m.key?.remoteJid;
+    if (!from?.endsWith('@g.us')) return false;
+    if (m.key?.fromMe) return false;
+    if (!sender) return false;
 
-  const anti = getAnti(from);
-  const hasAny = Object.keys(anti).some(k => k.startsWith('anti') && anti[k] === true);
-  if (!hasAny) return false;
+    const msg = m.message || ctx.msg || {};
+    const type = ctx.type || Object.keys(msg)[0] || '';
+    const body = ctx.body ?? msg.conversation ?? msg.extendedTextMessage?.text ?? msg.imageMessage?.caption ?? msg.videoMessage?.caption ?? msg.documentMessage?.caption ?? '';
 
-  const textLower = (body || '').toLowerCase();
-  const mentioned = msg.extendedTextMessage?.contextInfo?.mentionedJid || msg.imageMessage?.contextInfo?.mentionedJid || msg.videoMessage?.contextInfo?.mentionedJid || [];
-
-  // 1. ANTI-STICKER - REAL type check
-  if (anti.antisticker && type === 'stickerMessage') {
-    return await punish(sock, from, sender, senderNum, 'antisticker', 'Sticker', m, isBotAdmin);
-  }
-
-  // 2. ANTI-FAKE - REAL number, not LID
-  if (anti.antifake) {
-    const real = await getRealNum(sock, from, sender);
-    const allowed = anti.antifakeCodes || ['234'];
-    if (!allowed.some(c => real.startsWith(String(c).replace('+','')))) {
+    // Derive admin / owner if handler no pass am - FIX: no crash if ctx empty
+    let { isOwner, isAdmin, isBotAdmin } = ctx;
+    let senderNum = ctx.senderNum;
+    if (isAdmin === undefined || isBotAdmin === undefined || !senderNum) {
       try {
-        await sock.sendMessage(from, { text: `🌍 @${real} removed - Fake number not allowed. Only +${allowed.join(', +')} allowed.`, mentions: [sender] });
-        if (isBotAdmin) await sock.groupParticipantsUpdate(from, [sender], 'remove');
-      } catch {}
-      return true;
+        const g = await sock.groupMetadata(from);
+        const meJid = sock.user?.id;
+        const me = g.participants.find(x => x.id === meJid || clean(x.id) === clean(meJid) || x.lid === sock.user?.lid);
+        if (isBotAdmin === undefined) isBotAdmin = !!(me && (me.admin === 'admin' || me.admin === 'superadmin'));
+        const p = g.participants.find(x => x.id === sender || x.lid === sender || x.pn === sender);
+        if (isAdmin === undefined) isAdmin = !!(p && (p.admin === 'admin' || p.admin === 'superadmin'));
+        if (!senderNum) senderNum = p?.pn ? clean(p.pn) : clean(sender);
+      } catch { if (!senderNum) senderNum = clean(sender); }
     }
-  }
+    if (isOwner === undefined) isOwner = false;
+    if (isOwner || isAdmin) return false;
+    if (!body && type !== 'stickerMessage' && type !== 'imageMessage' && type !== 'videoMessage') return false;
 
-  // 3. ANTI-BOT - REAL: Check if sender is a bot via message context
-  // WhatsApp bot messages have 'bot' in participant? Fallback: check if message was sent via API (id pattern) + check sender is not human typing
-  // We use: if message has ephemeral + no human presence + id starts with BAE5/3EB0 AND sender sends >10 msgs in 10s with same pattern = bot
-  // Simpler real check: if another bot number is in group and sends command-like messages
-  if (anti.antibot) {
-    const isBotId = m.key.id?.startsWith('BAE5') || m.key.id?.startsWith('3EB0');
-    const looksBot = isBotId && /^\s*[.!\/](menu|ping|help|play|tagall|alive)/i.test(body || '');
-    if (looksBot) {
-      return await punish(sock, from, sender, senderNum, 'antibot', 'Bot Message', m, isBotAdmin);
+    const anti = getAnti(from);
+    const hasAny = Object.keys(anti).some(k => k.startsWith('anti') && anti[k] === true);
+    if (!hasAny) return false;
+
+    const textLower = (body || '').toLowerCase();
+    const mentioned = msg.extendedTextMessage?.contextInfo?.mentionedJid || msg.imageMessage?.contextInfo?.mentionedJid || msg.videoMessage?.contextInfo?.mentionedJid || [];
+
+    // 1. ANTI-STICKER
+    if (anti.antisticker && type === 'stickerMessage') {
+      return await punish(sock, from, sender, senderNum, 'antisticker', 'Sticker', m, isBotAdmin);
     }
-  }
 
-  // 4. ANTI-TAG
-  if (anti.antitag && mentioned.length >= 5) {
-    return await punish(sock, from, sender, senderNum, 'antitag', `Tagging ${mentioned.length} people`, m, isBotAdmin);
-  }
-
-  // 5. ANTI-LINK - REAL: allow only this group link
-  if (anti.antilink) {
-    const linkRegex = /(https?:\/\/|www\.|wa\.me\/|chat\.whatsapp\.com|t\.me\/|instagram\.com|tiktok\.com|youtube\.com|discord\.gg|bit\.ly)/i;
-    if (linkRegex.test(body)) {
-      let isOwnLink = false;
-      try {
-        const code = await sock.groupInviteCode(from);
-        if (body.includes(code)) isOwnLink = true;
-      } catch {}
-      if (!isOwnLink) {
-        return await punish(sock, from, sender, senderNum, 'antilink', 'Link', m, isBotAdmin);
+    // 2. ANTI-FAKE - REAL number, not LID
+    if (anti.antifake) {
+      const real = await getRealNum(sock, from, sender);
+      const allowed = anti.antifakeCodes || ['234'];
+      if (!allowed.some(c => real.startsWith(String(c).replace('+','')))) {
+        try {
+          await sock.sendMessage(from, { text: `🌍 @${real} removed - Fake number not allowed. Only +${allowed.join(', +')} allowed.`, mentions: [sender] });
+          if (isBotAdmin) await sock.groupParticipantsUpdate(from, [sender], 'remove');
+        } catch {}
+        return true;
       }
     }
-  }
 
-  // 6. ANTI-PROMOTE
-  if (anti.antipromote && /(dm me|dm for|join my group|join my channel|check my bio|follow me|subscribe to|promo|advert|earn money)/i.test(textLower)) {
-    if (!/(chat\.whatsapp\.com|wa\.me\/)/i.test(body)) {
-      return await punish(sock, from, sender, senderNum, 'antipromote', 'Promotion', m, isBotAdmin);
+    // 3. ANTI-BOT - FIX: BAE5/3EB0 na normal ID, no be bot. Real check = sender JID get @bot OR message get bot flag
+    if (anti.antibot) {
+      const isBotSender = sender.endsWith('@bot') || !!msg.extendedTextMessage?.contextInfo?.isBot || !!m.message?.botMessage;
+      // Only punish if na real bot account, no be human wey type .menu
+      if (isBotSender) {
+        return await punish(sock, from, sender, senderNum, 'antibot', 'Bot Message', m, isBotAdmin);
+      }
     }
-  }
 
-  // 7. ANTI-BADWORD
-  if (anti.antibadword) {
-    const bad = ['fuck','f*ck','shit','bitch','sex','porn','dick','pussy','nigga','nigger','motherfucker','bastard','whore','slut','cock','penis','vagina','fucking','asshole'];
-    if (bad.some(w => textLower.includes(w))) {
-      return await punish(sock, from, sender, senderNum, 'antibadword', 'Bad Word', m, isBotAdmin);
+    // 4. ANTI-TAG
+    if (anti.antitag && mentioned.length >= 5) {
+      return await punish(sock, from, sender, senderNum, 'antitag', `Tagging ${mentioned.length} people`, m, isBotAdmin);
     }
-  }
 
-  // 8. ANTI-SPAM + ANTI-FLOOD - REAL timestamps
-  if (anti.antispam || anti.antiflood) {
-    const key = from + ':' + sender;
-    const now = Date.now();
-    if (!global.spamMap.has(key)) global.spamMap.set(key, []);
-    let arr = global.spamMap.get(key).filter(x => now - x.time < 10000);
-    arr.push({ time: now, txt: body });
-    global.spamMap.set(key, arr);
-    const last5s = arr.filter(x => now - x.time < 5000);
-    const sameTxt = arr.filter(x => x.txt === body && body.length > 0);
-    if (anti.antiflood && last5s.length > 6) {
-      global.spamMap.set(key, []);
-      return await punish(sock, from, sender, senderNum, 'antiflood', 'Flooding (6 msgs in 5s)', m, isBotAdmin);
+    // 5. ANTI-LINK - allow only this group link
+    if (anti.antilink) {
+      const linkRegex = /(https?:\/\/|www\.|wa\.me\/|chat\.whatsapp\.com|t\.me\/|instagram\.com|tiktok\.com|youtube\.com|discord\.gg|bit\.ly)/i;
+      if (linkRegex.test(body)) {
+        let isOwnLink = false;
+        try {
+          const code = await sock.groupInviteCode(from);
+          if (body.includes(code)) isOwnLink = true;
+        } catch {}
+        if (!isOwnLink) {
+          return await punish(sock, from, sender, senderNum, 'antilink', 'Link', m, isBotAdmin);
+        }
+      }
     }
-    if (anti.antispam && sameTxt.length > 3 && body.length > 2) {
-      global.spamMap.set(key, []);
-      return await punish(sock, from, sender, senderNum, 'antispam', 'Spam (same msg 3x)', m, isBotAdmin);
+
+    // 6. ANTI-PROMOTE
+    if (anti.antipromote && /(dm me|dm for|join my group|join my channel|check my bio|follow me|subscribe to|promo|advert|earn money)/i.test(textLower)) {
+      if (!/(chat\.whatsapp\.com|wa\.me\/)/i.test(body)) {
+        return await punish(sock, from, sender, senderNum, 'antipromote', 'Promotion', m, isBotAdmin);
+      }
     }
-  }
-  return false;
+
+    // 7. ANTI-BADWORD
+    if (anti.antibadword) {
+      const bad = ['fuck','f*ck','shit','bitch','sex','porn','dick','pussy','nigga','nigger','motherfucker','bastard','whore','slut','cock','penis','vagina','fucking','asshole'];
+      if (bad.some(w => textLower.includes(w))) {
+        return await punish(sock, from, sender, senderNum, 'antibadword', 'Bad Word', m, isBotAdmin);
+      }
+    }
+
+    // 8. ANTI-SPAM + ANTI-FLOOD
+    if (anti.antispam || anti.antiflood) {
+      const key = from + ':' + sender;
+      const now = Date.now();
+      if (!global.spamMap.has(key)) global.spamMap.set(key, []);
+      let arr = global.spamMap.get(key).filter(x => now - x.time < 10000);
+      arr.push({ time: now, txt: body });
+      global.spamMap.set(key, arr);
+      const last5s = arr.filter(x => now - x.time < 5000);
+      const sameTxt = arr.filter(x => x.txt === body && body.length > 0);
+      if (anti.antiflood && last5s.length > 6) {
+        global.spamMap.set(key, []);
+        return await punish(sock, from, sender, senderNum, 'antiflood', 'Flooding (6 msgs in 5s)', m, isBotAdmin);
+      }
+      if (anti.antispam && sameTxt.length > 3 && body.length > 2) {
+        global.spamMap.set(key, []);
+        return await punish(sock, from, sender, senderNum, 'antispam', 'Spam (same msg 3x)', m, isBotAdmin);
+      }
+    }
+    return false;
+  } catch (e) { console.log('[ANTI ERROR]', e.message); return false; }
 }
 
-// ===== REAL CACHE - Download real media, not just text =====
+// ===== REAL CACHE - Download real media =====
 async function cacheMessage(sock, from, m, body, type) {
   try {
     if (!global.antiCache.has(from)) global.antiCache.set(from, new Map());
     const map = global.antiCache.get(from);
     const sender = m.key.participant || m.key.remoteJid;
-    let entry = { sender, senderNum: clean(sender), text: body, type, time: Date.now(), buffer: null, mimetype: null };
+    let entry = { sender, senderNum: clean(sender), text: body, type, time: Date.now(), buffer: null, mimetype: null, mediaType: null };
 
-    // REAL: Download image / video / sticker / audio / document if na antidelete group
     const anti = getAnti(from);
     if (anti.antidelete) {
       try {
@@ -202,11 +224,11 @@ async function cacheMessage(sock, from, m, body, type) {
           else if (m.message.stickerMessage) mType = 'sticker';
           else if (m.message.audioMessage) mType = 'audio';
           else if (m.message.documentMessage) mType = 'document';
-          // Use sock.downloadMediaMessage - REAL download
-          if (sock.downloadMediaMessage) {
-            const buf = await sock.downloadMediaMessage(m, 'buffer', {});
-            if (buf && buf.length > 100) { entry.buffer = buf; entry.mimetype = mediaMsg.mimetype || ''; entry.mediaType = mType; }
-          }
+          // FIX: sock.downloadMediaMessage no exist - use downloadContentFromMessage
+          const stream = await downloadContentFromMessage(mediaMsg, mType === 'audio' ? 'audio' : mType === 'document' ? 'document' : mType === 'sticker' ? 'sticker' : mType === 'video' ? 'video' : 'image');
+          let buf = Buffer.from([]);
+          for await (const c of stream) buf = Buffer.concat([buf, c]);
+          if (buf && buf.length > 100) { entry.buffer = buf; entry.mimetype = mediaMsg.mimetype || ''; entry.mediaType = mType; }
         }
       } catch {}
     }
@@ -215,39 +237,42 @@ async function cacheMessage(sock, from, m, body, type) {
   } catch {}
 }
 
-// ===== REAL DELETE - Re-send real media =====
+// ===== REAL DELETE - FIX: Baileys update na {key, update} =====
 async function handleDelete(sock, update) {
-  const groupId = update.key.remoteJid;
-  if (!groupId?.endsWith('@g.us')) return;
-  const anti = getAnti(groupId);
-  if (!anti.antidelete) return;
-  const cached = global.antiCache.get(groupId)?.get(update.key.id);
-  if (!cached) {
-    await sock.sendMessage(groupId, { text: `🗑️ Anti-Delete: Someone delete message but I no catch am (bot restart?)` });
-    return;
-  }
-  const header = `🗑️ *ANTI-DELETE*\n\n👤 @${cached.senderNum} delete this message:\n⏰ ${new Date(cached.time).toLocaleTimeString('en-NG')}\n\n`;
   try {
-    if (cached.buffer && cached.mediaType === 'image') {
-      await sock.sendMessage(groupId, { image: cached.buffer, caption: header + (cached.text || ''), mentions: [cached.sender] });
-    } else if (cached.buffer && cached.mediaType === 'video') {
-      await sock.sendMessage(groupId, { video: cached.buffer, caption: header + (cached.text || ''), mentions: [cached.sender] });
-    } else if (cached.buffer && cached.mediaType === 'sticker') {
-      await sock.sendMessage(groupId, { sticker: cached.buffer, mentions: [cached.sender] });
-      await sock.sendMessage(groupId, { text: header + `Sticker from @${cached.senderNum}`, mentions: [cached.sender] });
-    } else if (cached.buffer && cached.mediaType === 'audio') {
-      await sock.sendMessage(groupId, { audio: cached.buffer, mimetype: cached.mimetype || 'audio/mp4', mentions: [cached.sender] });
-    } else if (cached.buffer && cached.mediaType === 'document') {
-      await sock.sendMessage(groupId, { document: cached.buffer, fileName: 'deleted-file', mimetype: cached.mimetype || 'application/octet-stream', mentions: [cached.sender] });
-    } else {
-      await sock.sendMessage(groupId, { text: header + (cached.text || `[${cached.type} - no text]`), mentions: [cached.sender] });
+    const key = update.key || update;
+    const groupId = key.remoteJid;
+    if (!groupId?.endsWith('@g.us')) return;
+    const anti = getAnti(groupId);
+    if (!anti.antidelete) return;
+    const cached = global.antiCache.get(groupId)?.get(key.id);
+    if (!cached) {
+      await sock.sendMessage(groupId, { text: `🗑️ Anti-Delete: Someone delete message but I no catch am (bot restart?)` });
+      return;
     }
-  } catch {
-    await sock.sendMessage(groupId, { text: header + (cached.text || ''), mentions: [cached.sender] });
-  }
+    const header = `🗑️ *ANTI-DELETE*\n\n👤 @${cached.senderNum} delete this message:\n⏰ ${new Date(cached.time).toLocaleTimeString('en-NG')}\n\n`;
+    try {
+      if (cached.buffer && cached.mediaType === 'image') {
+        await sock.sendMessage(groupId, { image: cached.buffer, caption: header + (cached.text || ''), mentions: [cached.sender] });
+      } else if (cached.buffer && cached.mediaType === 'video') {
+        await sock.sendMessage(groupId, { video: cached.buffer, caption: header + (cached.text || ''), mentions: [cached.sender] });
+      } else if (cached.buffer && cached.mediaType === 'sticker') {
+        await sock.sendMessage(groupId, { sticker: cached.buffer, mentions: [cached.sender] });
+        await sock.sendMessage(groupId, { text: header + `Sticker from @${cached.senderNum}`, mentions: [cached.sender] });
+      } else if (cached.buffer && cached.mediaType === 'audio') {
+        await sock.sendMessage(groupId, { audio: cached.buffer, mimetype: cached.mimetype || 'audio/mp4', mentions: [cached.sender] });
+      } else if (cached.buffer && cached.mediaType === 'document') {
+        await sock.sendMessage(groupId, { document: cached.buffer, fileName: 'deleted-file', mimetype: cached.mimetype || 'application/octet-stream', mentions: [cached.sender] });
+      } else {
+        await sock.sendMessage(groupId, { text: header + (cached.text || `[${cached.type} - no text]`), mentions: [cached.sender] });
+      }
+    } catch {
+      await sock.sendMessage(groupId, { text: header + (cached.text || ''), mentions: [cached.sender] });
+    }
+  } catch {}
 }
 
-// ===== REAL ANTI-FAKE ON JOIN - Not on message =====
+// ===== REAL ANTI-FAKE ON JOIN =====
 async function handleParticipantUpdate(sock, update) {
   try {
     const { id, participants, action } = update;
@@ -257,7 +282,6 @@ async function handleParticipantUpdate(sock, update) {
     if (!anti.antifake) return;
     const allowed = anti.antifakeCodes || ['234'];
     for (const p of participants) {
-      // p fit be LID - resolve via groupMetadata
       let real = clean(p);
       try {
         const g = await sock.groupMetadata(id);
@@ -267,10 +291,9 @@ async function handleParticipantUpdate(sock, update) {
       } catch {}
       if (!allowed.some(c => real.startsWith(String(c).replace('+','')))) {
         try {
-          // Check bot admin
           const g = await sock.groupMetadata(id);
           const botId = sock.user?.id;
-          const me = g.participants.find(x => x.id === botId || x.lid === sock.user?.lid || x.pn === botId);
+          const me = g.participants.find(x => x.id === botId || x.lid === sock.user?.lid || clean(x.id) === clean(botId));
           if (me?.admin) {
             await sock.sendMessage(id, { text: `🌍 @${real} removed - Fake number not allowed. Only +${allowed.join(', +')} allowed.`, mentions: [p] });
             await sock.groupParticipantsUpdate(id, [p], 'remove');
@@ -281,16 +304,21 @@ async function handleParticipantUpdate(sock, update) {
   } catch {}
 }
 
-function toggle({ reply, from, args, key, label, emoji, onMsg, offMsg, isGroup, text }) {
+// FIX: antifake codes - check args[0] first, no be text wey fit contain command
+function toggle({ reply, from, args, key, label, emoji, onMsg, offMsg, isGroup }) {
   if (!isGroup) return reply('❌ Anti commands only work in a group.');
   const anti = getAnti(from);
-  if (key === 'antifake' && text && !['on','off'].includes(text.toLowerCase())) {
-    const codes = text.split(',').map(c => c.replace(/[^0-9]/g, '')).filter(Boolean);
-    if (codes.length) {
-      anti.antifakeCodes = codes;
-      anti.antifake = true;
-      save();
-      return reply(`🌍 Anti-Fake ON - Allowed: +${codes.join(', +')}`);
+  if (key === 'antifake') {
+    const first = String(args?.[0] || '').toLowerCase();
+    // .antifake 234,233  OR  .antifake 234
+    if (first && !['on','off','enable','disable'].includes(first)) {
+      const codes = first.split(',').map(c => c.replace(/[^0-9]/g, '')).filter(Boolean);
+      if (codes.length) {
+        anti.antifakeCodes = codes;
+        anti.antifake = true;
+        save();
+        return reply(`🌍 Anti-Fake ON - Allowed: +${codes.join(', +')}`);
+      }
     }
   }
   const parsed = parseToggle(args || []);
@@ -324,16 +352,27 @@ const commands = [
       await reply(`> ╭══〘 🛡️ ANTI STATUS 〙══⊷❍\n> ┃✯╭──────────────\n> ┃✯│ ${line('AntiLink', a.antilink)}\n> ┃✯│ ${line('AntiBot', a.antibot)}\n> ┃✯│ ${line('AntiSpam', a.antispam)}\n> ┃✯│ ${line('AntiFlood', a.antiflood)}\n> ┃✯│ ${line('AntiTag', a.antitag)}\n> ┃✯│ ${line('AntiDelete', a.antidelete)}\n> ┃✯│ ${line('AntiBadword', a.antibadword)}\n> ┃✯│ ${line('AntiSticker', a.antisticker)}\n> ┃✯│ ${line('AntiFake', a.antifake)} (+${(a.antifakeCodes||[]).join(',+')})\n> ┃✯│ ${line('AntiPromote', a.antipromote)}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`);
     }
   },
+  // FIX: split antion / antioff - no rely on ctx.command
   {
-    command: ['antiall', 'antion', 'antioff'],
+    command: ['antiall', 'antion'],
     adminOnly: true,
-    run: async ({ reply, from, isGroup, command }) => {
+    run: async ({ reply, from, isGroup }) => {
       if (!isGroup) return reply('❌ Only in group.');
       const a = getAnti(from);
-      const val = command === 'antioff' ? false : true;
-      ['antilink','antibot','antispam','antiflood','antitag','antidelete','antibadword','antisticker','antifake','antipromote'].forEach(k => a[k] = val);
+      ['antilink','antibot','antispam','antiflood','antitag','antidelete','antibadword','antisticker','antifake','antipromote'].forEach(k => a[k] = true);
       save();
-      await reply(val ? '✅ All anti ON' : '❌ All anti OFF');
+      await reply('✅ All anti ON');
+    }
+  },
+  {
+    command: ['antioff'],
+    adminOnly: true,
+    run: async ({ reply, from, isGroup }) => {
+      if (!isGroup) return reply('❌ Only in group.');
+      const a = getAnti(from);
+      ['antilink','antibot','antispam','antiflood','antitag','antidelete','antibadword','antisticker','antifake','antipromote'].forEach(k => a[k] = false);
+      save();
+      await reply('❌ All anti OFF');
     }
   },
   {
@@ -366,5 +405,3 @@ module.exports = commands;
 module.exports.handleAnti = handleAnti;
 module.exports.cacheMessage = cacheMessage;
 module.exports.handleDelete = handleDelete;
-module.exports.handleParticipantUpdate = handleParticipantUpdate;
-module.exports.getAnti = getAnti;
