@@ -1,4 +1,4 @@
-// KNIGHT XMD - Main Handler - FIXED LID + BotAdmin - Connected to group.js + anti.js + auto.js + moderator.js + Multi-Owner
+// KNIGHT XMD - Main Handler - FIXED - No More "Bot must be admin" Spam
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
@@ -77,7 +77,6 @@ function box(title, lines) {
 
 const cleanNum = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
-// ===== LID FIX - Find participant by id / pn / lid =====
 function findParticipant(meta, jid) {
   if (!meta || !jid) return null;
   const c = cleanNum(jid);
@@ -91,12 +90,11 @@ function findParticipant(meta, jid) {
     return false;
   });
 }
-// Get real phone number from participant (pn > id if na real number)
+
 function realNumFromParticipant(p, fallbackJid) {
   if (!p) return cleanNum(fallbackJid);
   if (p.pn && cleanNum(p.pn).length >= 10 && cleanNum(p.pn).startsWith('234')) return cleanNum(p.pn);
   if (p.pn && cleanNum(p.pn).length >= 7) return cleanNum(p.pn);
-  // If p.id na s.whatsapp.net, na real number
   if (p.id && p.id.endsWith('@s.whatsapp.net')) return cleanNum(p.id);
   return cleanNum(fallbackJid);
 }
@@ -111,7 +109,8 @@ async function handleMessage(sock, up, botNumber) {
   if (!sender && !m.key.fromMe) return;
 
   const botNum = cleanNum(botNumber || sock.user?.id || '');
-  const botJid = sock.user ? cleanNum(sock.user.id) + '@s.whatsapp.net' : '';
+  // FIXED: Use raw sock.user.id, no rebuild with @s.whatsapp.net - LID safe
+  const botJid = sock.user?.id || '';
   const sockUserRaw = sock.user?.id || '';
   const botLid = sock.user?.lid || '';
 
@@ -129,43 +128,38 @@ async function handleMessage(sock, up, botNumber) {
     try { await autoPlugin.handleAuto(sock, m, { from, body, type, msg, isGroup, prefix: config.prefix }); } catch (e) { console.log('Auto error', e.message); }
   }
 
-  // ===== GROUP META FIRST - so we fit resolve LID to real number BEFORE owner/admin check =====
   let groupMeta = null;
   let isAdmin = false;
   let isBotAdmin = false;
   if (isGroup) {
     try {
       groupMeta = await sock.groupMetadata(from);
-      // Resolve sender real number via pn
       const senderPartEarly = findParticipant(groupMeta, sender);
       if (senderPartEarly) {
         const real = realNumFromParticipant(senderPartEarly, sender);
-        // Only replace if real look like phone (not LID short)
         if (real && real.length >= 7) senderNum = real;
       }
       if (m.key.fromMe) senderNum = botNum;
 
-      // ===== ADMIN CHECK - LID FIX =====
       const senderPart = findParticipant(groupMeta, sender) || senderPartEarly;
       isAdmin = !!senderPart?.admin;
 
-      // ===== BOT ADMIN CHECK - LID FIX - THIS NA THE BUG =====
-      const botIds = [botNum, cleanNum(sockUserRaw), cleanNum(botJid), cleanNum(botLid), sockUserRaw, botLid, botJid];
+      // ===== BOT ADMIN CHECK - FIXED LID =====
+      const botRawIds = [sock.user?.id, sock.user?.lid, botJid, botNum, botLid, sockUserRaw].filter(Boolean);
+      const botNums = botRawIds.map(x => cleanNum(x)).filter(Boolean);
       const botPart = groupMeta.participants.find(p => {
-        if (botIds.includes(cleanNum(p.id))) return true;
-        if (botIds.includes(p.id)) return true;
-        if (p.pn && botIds.includes(cleanNum(p.pn))) return true;
-        if (p.pn && botIds.includes(p.pn)) return true;
-        if (p.lid && botIds.includes(cleanNum(p.lid))) return true;
-        if (p.lid && botIds.includes(p.lid)) return true;
+        if (botRawIds.includes(p.id)) return true;
+        if (p.pn && botRawIds.includes(p.pn)) return true;
+        if (p.lid && botRawIds.includes(p.lid)) return true;
+        const pNums = [cleanNum(p.id), p.pn ? cleanNum(p.pn) : '', p.lid ? cleanNum(p.lid) : ''].filter(Boolean);
+        if (pNums.some(n => botNums.includes(n))) return true;
         return false;
       });
       isBotAdmin = !!botPart?.admin;
-      if (!isBotAdmin) console.log('[BOTADMIN DEBUG] botNum:', botNum, '| sockUser:', sockUserRaw, '| lid:', botLid, '| botPart found:', !!botPart, '| botPart admin:', botPart?.admin);
+      // DEBUG REMOVED
     } catch (e) { console.log('GroupMeta fail', e.message); }
   }
 
-  // ===== OWNER LOGIC - AFTER LID resolve =====
   const SESSION_OWNER = botNum;
   const isCreator = senderNum === CREATOR;
   const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== "";
@@ -173,7 +167,6 @@ async function handleMessage(sock, up, botNumber) {
 
   if (m.key.fromMe && !isOwner) return;
 
-  // ===== ANTI HANDLER =====
   if (isGroup && antiPlugin?.cacheMessage) {
     try { antiPlugin.cacheMessage(from, m, body, type); } catch {}
   }
@@ -223,9 +216,10 @@ async function handleMessage(sock, up, botNumber) {
     }
   }
 
-  if (plugin.botAdminOnly && !isBotAdmin) {
-    return sock.sendMessage(from, { text: `❌ Bot must be admin to do this. Make bot admin first.` }, { quoted: m });
-  }
+  // ===== FIXED: botAdminOnly BLOCK REMOVED =====
+  // Old code dey block here and show "Bot must be admin" rubbish.
+  // Now we let group.js handle am with clean message.
+  // No block here again.
 
   if (plugin.groupOnly && !isGroup) return;
 
