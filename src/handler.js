@@ -127,13 +127,11 @@ async function handleMessage(sock, update, botNumber) {
 
     const botJid = sock.user?.id || '';
     const botNum = cleanNum(botNumber || botJid);
-    const senderNum = message.key.fromMe ? botNum : cleanNum(sender);
+    // FIX: senderNum go resolve to real PN after groupMeta, no be LID
+    let senderNum = message.key.fromMe ? botNum : cleanNum(sender);
     const creatorNum = cleanNum(config.creatorNumber || config.creator || '');
     const body = getMessageText(message);
     const messageType = Object.keys(message.message)[0] || '';
-    const isCreator = Boolean(creatorNum && senderNum === creatorNum);
-    const isSessionOwner = Boolean(botNum && senderNum === botNum);
-    const isOwner = isCreator || isSessionOwner;
 
     if (autoPlugin?.handleAuto) {
       try {
@@ -153,6 +151,9 @@ async function handleMessage(sock, update, botNumber) {
       try {
         groupMeta = await sock.groupMetadata(from);
         senderParticipant = findParticipant(groupMeta, sender);
+        // FIX: Real phone from PN - LID fix for ban/owner/anti
+        if (senderParticipant?.pn) senderNum = cleanNum(senderParticipant.pn);
+        else if (senderParticipant?.id?.endsWith('@s.whatsapp.net')) senderNum = cleanNum(senderParticipant.id);
         isAdmin = Boolean(senderParticipant?.admin);
         const botCandidates = [sock.user?.id, sock.user?.lid, botNumber].filter(Boolean).map(String);
         const botNumbers = botCandidates.map(cleanNum).filter(Boolean);
@@ -167,23 +168,20 @@ async function handleMessage(sock, update, botNumber) {
       }
     }
 
+    const isCreator = Boolean(creatorNum && senderNum === creatorNum);
+    const isSessionOwner = Boolean(botNum && senderNum === botNum);
+    const isOwner = isCreator || isSessionOwner;
+
+    // ===== ANTI CONNECTED - 1. Cache FIRST (for antidelete) =====
     if (isGroup && antiPlugin?.cacheMessage) {
       try {
-        // Signature is (sock, groupJid, message, body, type); passing all five
-        // arguments is required for real media download and anti-delete recovery.
         await antiPlugin.cacheMessage(sock, from, message, body, messageType);
       } catch (error) {
         console.error('[ANTI-DELETE] Cache failed:', error.message);
       }
     }
-function setupHandlers(sock) {
-  setupAntiDelete(sock);
-  setupAuto(sock);
-  try {
-    const wlc = require('../plugins/wlc');
-    if (wlc.attachEngine) wlc.attachEngine(sock);
-  } catch {}
-  }
+
+    // ===== ANTI CONNECTED - 2. Check + block BEFORE commands =====
     if (isGroup && antiPlugin?.handleAnti) {
       try {
         const blocked = await antiPlugin.handleAnti(sock, message, {
@@ -261,7 +259,8 @@ function setupAntiDelete(sock) {
   sock.__antiDeleteHandlerAttached = true;
   sock.ev.on('messages.update', async updates => {
     for (const update of updates || []) {
-      if (update.update?.message !== null) continue;
+      // FIX: delete na message === null OR stubType 68 (revoke)
+      if (update.update?.message !== null && update.update?.messageStubType !== 68) continue;
       try {
         await antiPlugin?.handleDelete?.(sock, update);
       } catch (error) {
@@ -283,9 +282,14 @@ function setupParticipantUpdates(sock) {
   });
 }
 
+// FIX: ONE setupHandlers only - no duplicate, no stray inside handleMessage
 function setupHandlers(sock) {
   setupAntiDelete(sock);
   setupParticipantUpdates(sock);
+  try {
+    const wlc = require('../plugins/wlc');
+    if (wlc.attachEngine) wlc.attachEngine(sock);
+  } catch {}
   try { autoPlugin?.restoreAuto?.(sock); }
   catch (error) { console.error('[AUTO] Could not restore automation:', error.message); }
 }
