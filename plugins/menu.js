@@ -180,3 +180,12 @@ module.exports = [
   }
 },
 ];
+`;
+
+      await sock.sendMessage(from, {
+        image: { url: 'https://files.catbox.moe/4nbm9j.jpg' },
+        caption: menu
+      }, { quoted: m });
+    }
+  }
+];
