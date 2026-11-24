@@ -1,11 +1,10 @@
 const config = require('../config');
-const config = require('../config');
-module.exports = [
-{
-  command: ['menu2','help2'],
-  run: async ({ reply, tiny, prefix }) => { sock, m }) => {
 
-    const menu = `
+module.exports = [
+  {
+    command: ['menu2', 'help2'],
+    run: async ({ sock, from, m, prefix }) => {
+      const menu = `
 ╔═══════════════════════╗
 ║    ⚔ 𝕶𝕹𝕴𝕲𝕳𝕿 𝖃𝕸𝕯 ⚔
 ╚═══════════════════════╝
@@ -157,11 +156,10 @@ module.exports = [
      𝕻𝕺𝖂𝕰𝕽 • 𝕷𝕺𝖄𝕬𝕷𝕿𝖄 • 𝕰𝖃𝕮𝕰𝕷𝕷𝕰𝕹𝕮𝕰
 `;
 
-    await sock.sendMessage(m.chat, {
-      image: { url: 'https://files.catbox.moe/4nbm9j.jpg' },
-      caption: menu
-    }, { quoted: m });
-
+      await sock.sendMessage(from, {
+        image: { url: 'https://files.catbox.moe/4nbm9j.jpg' },
+        caption: menu
+      }, { quoted: m });
+    }
   }
-}
 ];
