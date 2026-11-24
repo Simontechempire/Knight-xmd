@@ -1,14 +1,16 @@
-// KNIGHT XMD - Dashboard Server - Fixed with SIMON Engine
+// KNIGHT XMD - Dashboard Server - Fixed with SIMON Engine + 20 DEVICES
 const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
 const config = require('./config');
 const { startBot, activeSockets } = require('./src/connection');
+const devicesApi = require('./src/devicesApi'); // <-- 20 DEVICES - NEW
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api', devicesApi); // <-- 20 DEVICES API - NEW - GET /api/devices , POST /api/pair/:slot
 
 // ========== PAIRING - FIXED - NO BLOCKING ==========
 app.post('/api/pair', async (req, res) => {
