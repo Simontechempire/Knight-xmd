@@ -35,9 +35,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function save() { if (global.dbSave) global.dbSave(); }
 
 module.exports = [
-  ══⊷❍\n` +
-   // ========== PING - REAL SPEED, LIVE ANIMATED EDIT - NOBODY USE THIS ==========
-// Method: Same message edits 5 times like live loading bar, real ping inside
+  // ========== PING - REAL SPEED, LIVE ANIMATED EDIT - NOBODY USE THIS ==========
+  // Method: Same message edits 5 times like live loading bar, real ping inside
   {
     command: ['ping'],
     run: async ({ sock, from, m }) => {
@@ -294,13 +293,13 @@ module.exports = [
   {
     command: ['block'],
     ownerOnly: true,
-    run: async ({ sock, m, args, reply, sender, isCreator }) => {
+    run: async ({ sock, m, args, reply, sender, isCreator, from }) => {
       const target = getTarget(m, args);
       if (!target) return reply('Mention user, reply to them, or .block 234...');
       const targetNum = clean(target);
       if (targetNum === clean(config.creatorNumber)) return reply('❌ You cannot block the Creator');
       if (targetNum === clean(sender)) return reply('❌ You cannot block yourself');
-      try { await sock.updateBlockStatus(target, 'block'); await reply(`✅ Blocked @${targetNum}`, { mentions: [target] }); }
+      try { await sock.updateBlockStatus(target, 'block'); await sock.sendMessage(from, { text: `✅ Blocked @${targetNum}`, mentions: [target] }, { quoted: m }); }
       catch { await reply('❌ Block failed'); }
     }
   },
@@ -309,10 +308,10 @@ module.exports = [
   {
     command: ['unblock'],
     ownerOnly: true,
-    run: async ({ sock, m, args, reply }) => {
+    run: async ({ sock, m, args, reply, from }) => {
       const target = getTarget(m, args);
       if (!target) return reply('Mention user or .unblock 234...');
-      try { await sock.updateBlockStatus(target, 'unblock'); await reply(`✅ Unblocked @${clean(target)}`, { mentions: [target] }); }
+      try { await sock.updateBlockStatus(target, 'unblock'); await sock.sendMessage(from, { text: `✅ Unblocked @${clean(target)}`, mentions: [target] }, { quoted: m }); }
       catch { await reply('❌ Unblock failed'); }
     }
   },
@@ -321,7 +320,7 @@ module.exports = [
   {
     command: ['ban'],
     ownerOnly: true,
-    run: async ({ reply, m, args, sender, isCreator }) => {
+    run: async ({ reply, m, args, sender, isCreator, sock, from }) => {
       const t = getTarget(m, args);
       if (!t) return reply('Mention user to ban');
       const num = clean(t);
@@ -330,10 +329,10 @@ module.exports = [
       if (banId === clean(config.creatorNumber)) return reply('❌ You cannot ban the Creator');
       if (banId === clean(sender)) return reply('❌ You cannot ban yourself');
       const banned = getBanned();
-      if (banned.includes(banId)) return reply(`@${banId} already banned`, { mentions: [t] });
+      if (banned.includes(banId)) return reply(`@${banId} already banned`);
       banned.push(banId);
       save();
-      await reply(box('🚫 BANNED', [`@${banId} banned`, 'Bot will ignore them now']), { mentions: [t] });
+      await sock.sendMessage(from, { text: box('🚫 BANNED', [`@${banId} banned`, 'Bot will ignore them now']), mentions: [t] }, { quoted: m });
     }
   },
 
@@ -341,13 +340,13 @@ module.exports = [
   {
     command: ['unban'],
     ownerOnly: true,
-    run: async ({ reply, m, args }) => {
+    run: async ({ reply, m, args, sock, from }) => {
       const t = getTarget(m, args);
       if (!t) return reply('Mention user to unban');
       const num = clean(t);
       global.db.banned = getBanned().filter(x => x !== num);
       save();
-      await reply(box('✅ UNBANNED', [`@${num} unbanned`, 'They can use bot now']), { mentions: [t] });
+      await sock.sendMessage(from, { text: box('✅ UNBANNED', [`@${num} unbanned`, 'They can use bot now']), mentions: [t] }, { quoted: m });
     }
   },
 
@@ -355,12 +354,12 @@ module.exports = [
   {
     command: ['banlist', 'banned'],
     ownerOnly: true,
-    run: async ({ reply }) => {
+    run: async ({ reply, sock, from, m }) => {
       const banned = getBanned();
       if (!banned.length) return reply('✅ No banned users');
       let t = `🚫 *BANNED LIST (${banned.length})*\n\n`;
       banned.forEach((n, i) => t += `${i + 1}. @${n}\n`);
-      await reply(t, { mentions: banned.map(n => n + '@s.whatsapp.net') });
+      await sock.sendMessage(from, { text: t, mentions: banned.map(n => n + '@s.whatsapp.net') }, { quoted: m });
     }
   },
 ];
