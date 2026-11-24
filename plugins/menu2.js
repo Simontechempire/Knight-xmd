@@ -2,7 +2,7 @@ const config = require('../config');
 
 module.exports = [
   {
-    command: ['menu2', 'help2'],
+    command: ['m', 'h'],
     run: async ({ sock, from, m, prefix }) => {
       const menu = `
 ╔═══════════════════════╗
