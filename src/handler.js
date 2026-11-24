@@ -10,6 +10,37 @@ if (!global.db.settings) global.db.settings = {};
 if (!global.db.anti) global.db.anti = {};
 if (!global.botStart) global.botStart = Date.now();
 
+// ===== ✅ ADDED: PER-SESSION DB - Each bot get him own DB =====
+// Old: database.json for everybody -> David ban you, e ban for all
+// New: sessions/<number>/db.json -> David ban person, na only him bot
+function getSessionDBPath(botNum) {
+  return path.join(__dirname, '..', 'sessions', String(botNum), 'db.json');
+}
+function loadSessionDB(botNum) {
+  try {
+    const file = getSessionDBPath(botNum);
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return {
+        banned: Array.isArray(data.banned) ? data.banned : [],
+        warnings: data.warnings || {},
+        settings: data.settings || {},
+        anti: data.anti || {},
+        users: data.users || {},
+        groups: data.groups || {}
+      };
+    }
+  } catch {}
+  return { banned: [], warnings: {}, settings: {}, anti: {}, users: {}, groups: {} };
+}
+function saveSessionDB(botNum, db) {
+  try {
+    const dir = path.dirname(getSessionDBPath(botNum));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(getSessionDBPath(botNum), JSON.stringify(db, null, 2));
+  } catch {}
+}
+
 const DB_PATH = path.join(__dirname, '..', 'database.json');
 function loadDB() {
   try {
@@ -20,9 +51,8 @@ function loadDB() {
     global.db.warnings ||= {};
     global.db.settings ||= {};
     global.db.anti ||= {};
-    if (global.db.settings.mode) config.mode = global.db.settings.mode;
-    if (global.db.settings.prefix) config.prefix = global.db.settings.prefix;
-    if (global.db.settings.language) config.language = global.db.settings.language;
+    // ✅ REMOVED: No more global mode/prefix overwrite - each session get him own
+    // Old code here dey cause David prefix to change yours. We no touch global again.
   } catch (error) {
     console.error('[DB] Could not load database:', error.message);
   }
@@ -86,7 +116,7 @@ function formatRuntime(milliseconds) {
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainder = seconds % 60;
   if (days) return `${days}d ${hours}h ${minutes}m`;
-  if (hours) return `${hours}m ${remainder}s`;
+  if (hours) return `${hours}h ${minutes}m ${remainder}s`;
   if (minutes) return `${minutes}m ${remainder}s`;
   return `${remainder}s`;
 }
@@ -98,11 +128,9 @@ function box(title, lines) {
 function getMessageText(message) {
   const content = message?.message;
   if (!content) return '';
-  // ✅ ADDED: Button Click - Bottom Method
   if (content.buttonsResponseMessage?.selectedButtonId) {
     return content.buttonsResponseMessage.selectedButtonId;
   }
-  // ✅ ADDED: List Click
   if (content.listResponseMessage?.singleSelectReply?.selectedRowId) {
     return content.listResponseMessage.singleSelectReply.selectedRowId;
   }
@@ -122,7 +150,8 @@ function getMessageText(message) {
   return candidates.find(value => typeof value === 'string') || '';
 }
 
-async function handleMessage(sock, update, botNumber) {
+// ✅ CHANGED: 4th argument = sessionSettings from connection.js
+async function handleMessage(sock, update, botNumber, sessionSettings) {
   for (const message of update?.messages || []) {
     if (!message?.message || !message.key?.remoteJid) continue;
 
@@ -135,15 +164,32 @@ async function handleMessage(sock, update, botNumber) {
 
     const botJid = sock.user?.id || '';
     const botNum = cleanNum(botNumber || botJid);
+
+    // ===== ✅ ADDED: THIS SESSION OWN SETTINGS =====
+    // If connection.js no pass am, fallback to sock.sessionSettings or global getSessionSettings
+    const sess = sessionSettings || sock.sessionSettings || (global.getSessionSettings ? global.getSessionSettings(botNum) : null) || {};
+    const sessionPrefix = sess.prefix || config.prefix || '.';
+    const sessionMode = sess.mode || config.mode || 'public';
+    // ✅ Owner = who pair this session. NOT global creator.
+    const sessionOwner = cleanNum(sess.owner || sess.creatorNumber || botNum);
+    // For this session, creator = owner. So David no be your creator.
+    const creatorNum = sessionOwner;
+
+    // ✅ ADDED: THIS SESSION OWN DB
+    const sessionDB = loadSessionDB(botNum);
+    // Keep global.db for old plugins wey still use am, but point am to session DB for this message
+    // So anti/auto wey read global.db go read this session own data
+    const prevGlobalDB = global.db;
+    global.db = sessionDB;
+
     let senderNum = message.key.fromMe ? botNum : cleanNum(sender);
-    const creatorNum = cleanNum(config.creatorNumber || config.creator || '');
     const body = getMessageText(message);
     const messageType = Object.keys(message.message)[0] || '';
 
     if (autoPlugin?.handleAuto) {
       try {
         await autoPlugin.handleAuto(sock, message, {
-          from, body, type: messageType, msg: message.message, isGroup, prefix: config.prefix
+          from, body, type: messageType, msg: message.message, isGroup, prefix: sessionPrefix
         });
       } catch (error) {
         console.error('[AUTO] Message handler failed:', error.message);
@@ -176,6 +222,7 @@ async function handleMessage(sock, update, botNumber) {
 
     const isCreator = Boolean(creatorNum && senderNum === creatorNum);
     const isSessionOwner = Boolean(botNum && senderNum === botNum);
+    // ✅ CHANGED: isOwner = na session owner only. David no fit be owner for your bot.
     const isOwner = isCreator || isSessionOwner;
 
     if (isGroup && antiPlugin?.cacheMessage) {
@@ -192,39 +239,45 @@ async function handleMessage(sock, update, botNumber) {
           from, sender, senderNum, isGroup, isOwner, isAdmin, isBotAdmin,
           body, type: messageType, msg: message.message, groupMeta
         });
-        if (blocked) continue;
+        if (blocked) {
+          saveSessionDB(botNum, sessionDB);
+          global.db = prevGlobalDB;
+          continue;
+        }
       } catch (error) {
         console.error('[ANTI] Message checks failed:', error.message);
       }
     }
 
-    if (global.db.banned.includes(senderNum) && !isOwner) {
-      if (body.startsWith(config.prefix)) {
+    // ✅ CHANGED: Banned check use session DB + session prefix
+    if (sessionDB.banned.includes(senderNum) && !isOwner) {
+      if (body.startsWith(sessionPrefix)) {
         await sock.sendMessage(from, {
           text: `🚫 You are banned from using Knight XMD.\nContact owner: wa.me/${creatorNum}`
         }, { quoted: message });
       }
+      saveSessionDB(botNum, sessionDB);
+      global.db = prevGlobalDB;
       continue;
     }
 
-    // ✅ ADDED: Button Click check
     const isButtonClick = Boolean(
       message.message?.buttonsResponseMessage?.selectedButtonId ||
       message.message?.listResponseMessage?.singleSelectReply?.selectedRowId
     );
 
-    if (!body) continue;
-    if (!isButtonClick && (!config.prefix || !body.startsWith(config.prefix))) continue;
+    if (!body) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
+    if (!isButtonClick && (!sessionPrefix || !body.startsWith(sessionPrefix))) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
 
     let parts;
     if (isButtonClick) {
       parts = body.trim().split(/\s+/).filter(Boolean);
     } else {
-      parts = body.slice(config.prefix.length).trim().split(/\s+/).filter(Boolean);
+      parts = body.slice(sessionPrefix.length).trim().split(/\s+/).filter(Boolean);
     }
 
     const commandName = parts.shift()?.toLowerCase();
-    if (!commandName) continue;
+    if (!commandName) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
     const args = parts;
     const text = args.join(' ');
 
@@ -234,26 +287,43 @@ async function handleMessage(sock, update, botNumber) {
         ? candidate.command.includes(commandName)
         : candidate.command === commandName;
     });
-    if (!plugin) continue;
+    if (!plugin) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
 
-    if ((config.mode === 'private' || config.mode === 'self') && !isOwner) continue;
-    if (plugin.ownerOnly && !isOwner) continue;
-    if (plugin.creatorOnly && !isCreator) continue;
-    if (plugin.groupOnly && !isGroup) continue;
+    // ✅ CHANGED: Use session mode, not global mode
+    if ((sessionMode === 'private' || sessionMode === 'self') && !isOwner) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
+    if (plugin.ownerOnly && !isOwner) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
+    if (plugin.creatorOnly && !isCreator) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
+    if (plugin.groupOnly && !isGroup) { saveSessionDB(botNum, sessionDB); global.db = prevGlobalDB; continue; }
     if (plugin.adminOnly && (!isGroup || (!isAdmin && !isOwner))) {
       await sock.sendMessage(from, {
         text: isGroup ? '❌ Only group admins can use this command.' : '❌ This command only works in a group.'
       }, { quoted: message });
+      saveSessionDB(botNum, sessionDB);
+      global.db = prevGlobalDB;
       continue;
     }
+
+    // ✅ CHANGED: sessionConfig = config copy but with this session prefix/mode/owner
+    // Plugins wey use config.prefix go get correct prefix for this bot only
+    const sessionConfig = { ...config, prefix: sessionPrefix, mode: sessionMode, creatorNumber: sessionOwner, creator: sessionOwner };
 
     const context = {
       sock, m: message, from, sender, senderNum, botNumber: botNum, botJid,
       isGroup, isOwner, isCreator, isSessionOwner, isAdmin, isBotAdmin,
       groupMetadata: groupMeta, groupMeta, args, text, body,
       quoted: message.message.extendedTextMessage?.contextInfo?.quotedMessage,
-      type: messageType, tiny: value => String(value), config,
-      prefix: config.prefix, command: commandName, runtime: formatRuntime, box,
+      type: messageType, tiny: value => String(value),
+      config: sessionConfig, // ✅ per-session config
+      sessionSettings: sess, // ✅ plugins fit use am to save prefix
+      sessionDB, // ✅ per-session DB
+      db: sessionDB,
+      // ✅ Helper for setprefix / setmode plugins: save to only this session file
+      saveSession: (newSettings) => {
+        const merged = { ...sess, ...newSettings, owner: sessionOwner };
+        if (global.saveSessionSettings) global.saveSessionSettings(botNum, merged);
+        return merged;
+      },
+      prefix: sessionPrefix, command: commandName, runtime: formatRuntime, box,
       reply: async (content, options = {}) => sock.sendMessage(from, {
         text: String(content), mentions: options.mentions || []
       }, { quoted: message }),
@@ -263,12 +333,15 @@ async function handleMessage(sock, update, botNumber) {
     };
 
     try {
-      console.log(`[CMD] ${senderNum} -> ${config.prefix}${commandName} | owner:${isOwner} admin:${isAdmin} botAdmin:${isBotAdmin}`);
+      console.log(`[CMD] [${botNum}] ${senderNum} -> ${sessionPrefix}${commandName} | owner:${isOwner} admin:${isAdmin} botAdmin:${isBotAdmin}`);
       await plugin.run(context);
     } catch (error) {
       console.error(`[CMD] ${commandName} failed:`, error.stack || error.message);
       await sock.sendMessage(from, { text: `❌ Command failed: ${error.message}` }, { quoted: message });
     }
+    // Save session DB after command (for ban/warn etc)
+    saveSessionDB(botNum, sessionDB);
+    global.db = prevGlobalDB;
   }
 }
 
@@ -312,5 +385,6 @@ function setupHandlers(sock) {
 
 module.exports = {
   handleMessage, loadPlugins, setupAntiDelete, setupParticipantUpdates,
-  setupHandlers, plugins: () => plugins, antiPlugin, autoPlugin
+  setupHandlers, plugins: () => plugins, antiPlugin, autoPlugin,
+  loadSessionDB, saveSessionDB
 };
