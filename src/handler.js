@@ -1,279 +1,289 @@
-// KNIGHT XMD - Main Handler - FIXED - No More "Bot must be admin" Spam
+// Knight XMD message handler.
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 
 if (!global.db) global.db = {};
-if (!global.db.banned) global.db.banned = [];
+if (!Array.isArray(global.db.banned)) global.db.banned = [];
 if (!global.db.warnings) global.db.warnings = {};
-if (!global.db.settings) global.db.settings = { mode: config.mode, prefix: config.prefix, language: config.language };
+if (!global.db.settings) global.db.settings = {};
 if (!global.db.anti) global.db.anti = {};
 if (!global.botStart) global.botStart = Date.now();
 
 const DB_PATH = path.join(__dirname, '..', 'database.json');
 function loadDB() {
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-      global.db = { ...global.db, ...data };
-      if (!global.db.banned) global.db.banned = [];
-      if (!global.db.warnings) global.db.warnings = {};
-      if (!global.db.settings) global.db.settings = {};
-      if (!global.db.anti) global.db.anti = {};
-      if (global.db.settings.mode) config.mode = global.db.settings.mode;
-      if (global.db.settings.prefix) config.prefix = global.db.settings.prefix;
-      if (global.db.settings.language) config.language = global.db.settings.language;
-    }
-  } catch (e) { console.log('DB load failed:', e.message); }
+    if (!fs.existsSync(DB_PATH)) return;
+    const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    global.db = { ...global.db, ...data };
+    if (!Array.isArray(global.db.banned)) global.db.banned = [];
+    global.db.warnings ||= {};
+    global.db.settings ||= {};
+    global.db.anti ||= {};
+    if (global.db.settings.mode) config.mode = global.db.settings.mode;
+    if (global.db.settings.prefix) config.prefix = global.db.settings.prefix;
+    if (global.db.settings.language) config.language = global.db.settings.language;
+  } catch (error) {
+    console.error('[DB] Could not load database:', error.message);
+  }
 }
+
 function saveDB() {
-  try { fs.writeFileSync(DB_PATH, JSON.stringify(global.db, null, 2)); } catch {}
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(global.db, null, 2));
+  } catch (error) {
+    console.error('[DB] Could not save database:', error.message);
+  }
 }
 global.dbSave = saveDB;
 loadDB();
 
 let plugins = [];
+const pluginDir = path.join(__dirname, '..', 'plugins');
 function loadPlugins() {
   plugins = [];
-  const dir = path.join(__dirname, '..', 'plugins');
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.js'));
-  for (const f of files) {
+  const files = fs.readdirSync(pluginDir).filter(file => file.endsWith('.js')).sort();
+  for (const file of files) {
+    const fullPath = path.join(pluginDir, file);
     try {
-      delete require.cache[require.resolve(path.join(dir, f))];
-      const p = require(path.join(dir, f));
-      if (Array.isArray(p)) plugins.push(...p);
-      else plugins.push(p);
-    } catch (e) { console.log('Plugin fail', f, e.message); }
+      delete require.cache[require.resolve(fullPath)];
+      const loaded = require(fullPath);
+      if (Array.isArray(loaded)) plugins.push(...loaded);
+      else if (loaded && typeof loaded === 'object') plugins.push(loaded);
+    } catch (error) {
+      console.error(`[PLUGIN] Failed to load ${file}:`, error.stack || error.message);
+    }
   }
-  console.log(`📦 Loaded ${plugins.length} commands from ${files.length} plugin files`);
+  console.log(`[PLUGINS] Loaded ${plugins.length} commands from ${files.length} files`);
 }
 loadPlugins();
 
 let antiPlugin = null;
-try { antiPlugin = require('../plugins/anti'); } catch (e) { console.log('Anti plugin not loaded:', e.message); }
+try { antiPlugin = require('../plugins/anti'); }
+catch (error) { console.error('[ANTI] Plugin not loaded:', error.message); }
 let autoPlugin = null;
-try { autoPlugin = require('../plugins/auto'); } catch (e) { console.log('Auto plugin not loaded:', e.message); }
+try { autoPlugin = require('../plugins/auto'); }
+catch (error) { console.error('[AUTO] Plugin not loaded:', error.message); }
 
-const tiny = (t) => {
-  const map = { a:'ᴀ', b:'ʙ', c:'ᴄ', d:'ᴅ', e:'ᴇ', f:'ꜰ', g:'ɢ', h:'ʜ', i:'ɪ', j:'ᴊ', k:'ᴋ', l:'ʟ', m:'ᴍ', n:'ɴ', o:'ᴏ', p:'ᴘ', q:'ǫ', r:'ʀ', s:'ꜱ', t:'ᴛ', u:'ᴜ', v:'ᴠ', w:'ᴡ', x:'x', y:'ʏ', z:'ᴢ', '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9' };
-  return String(t).toLowerCase().split('').map(c => map[c] || c).join('');
-};
+const cleanNum = jid => String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
-function formatRuntime(ms) {
-  const s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m ${sec}s`;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
+function findParticipant(meta, jid) {
+  if (!meta?.participants || !jid) return null;
+  const raw = String(jid);
+  const number = cleanNum(raw);
+  return meta.participants.find(participant => {
+    if (participant.id === raw || participant.pn === raw || participant.lid === raw) return true;
+    if (!number) return false;
+    return [participant.id, participant.pn]
+      .some(value => value && cleanNum(value) === number);
+  }) || null;
+}
+
+function formatRuntime(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  if (days) return `${days}d ${hours}h ${minutes}m`;
+  if (hours) return `${hours}h ${minutes}m ${remainder}s`;
+  if (minutes) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
 }
 
 function box(title, lines) {
-  let t = `> ╭══〘 ${title} 〙══⊷❍\n> ┃✯╭──────────────\n`;
-  lines.forEach(l => t += `> ┃✯│ ${l}\n`);
-  t += `> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`;
-  return t;
+  return `> ╭══〘 ${title} 〙══⊷❍\n> ┃✯╭──────────────\n${lines.map(line => `> ┃✯│ ${line}`).join('\n')}\n> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`;
 }
 
-const cleanNum = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-
-function findParticipant(meta, jid) {
-  if (!meta || !jid) return null;
-  const c = cleanNum(jid);
-  return meta.participants.find(p => {
-    if (p.id === jid) return true;
-    if (cleanNum(p.id) === c) return true;
-    if (p.pn && cleanNum(p.pn) === c) return true;
-    if (p.pn === jid) return true;
-    if (p.lid && cleanNum(p.lid) === c) return true;
-    if (p.lid === jid) return true;
-    return false;
-  });
+function getMessageText(message) {
+  const content = message?.message;
+  if (!content) return '';
+  const candidates = [
+    content.conversation,
+    content.extendedTextMessage?.text,
+    content.imageMessage?.caption,
+    content.videoMessage?.caption,
+    content.documentMessage?.caption,
+    content.viewOnceMessage?.message?.imageMessage?.caption,
+    content.viewOnceMessage?.message?.videoMessage?.caption,
+    content.viewOnceMessageV2?.message?.imageMessage?.caption,
+    content.viewOnceMessageV2?.message?.videoMessage?.caption,
+    content.ephemeralMessage?.message?.conversation,
+    content.ephemeralMessage?.message?.extendedTextMessage?.text
+  ];
+  return candidates.find(value => typeof value === 'string') || '';
 }
 
-function realNumFromParticipant(p, fallbackJid) {
-  if (!p) return cleanNum(fallbackJid);
-  if (p.pn && cleanNum(p.pn).length >= 10 && cleanNum(p.pn).startsWith('234')) return cleanNum(p.pn);
-  if (p.pn && cleanNum(p.pn).length >= 7) return cleanNum(p.pn);
-  if (p.id && p.id.endsWith('@s.whatsapp.net')) return cleanNum(p.id);
-  return cleanNum(fallbackJid);
-}
+async function handleMessage(sock, update, botNumber) {
+  for (const message of update?.messages || []) {
+    if (!message?.message || !message.key?.remoteJid) continue;
 
-async function handleMessage(sock, up, botNumber) {
-  const m = up.messages[0];
-  if (!m.message) return;
+    const from = message.key.remoteJid;
+    const isGroup = from.endsWith('@g.us');
+    const sender = isGroup
+      ? (message.key.participant || message.key.participantPn || '')
+      : from;
+    if (!sender && !message.key.fromMe) continue;
 
-  const from = m.key.remoteJid;
-  const isGroup = from.endsWith('@g.us');
-  const sender = isGroup ? m.key.participant : from;
-  if (!sender && !m.key.fromMe) return;
+    const botJid = sock.user?.id || '';
+    const botNum = cleanNum(botNumber || botJid);
+    const senderNum = message.key.fromMe ? botNum : cleanNum(sender);
+    const creatorNum = cleanNum(config.creatorNumber || config.creator || '');
+    const body = getMessageText(message);
+    const messageType = Object.keys(message.message)[0] || '';
+    const isCreator = Boolean(creatorNum && senderNum === creatorNum);
+    const isSessionOwner = Boolean(botNum && senderNum === botNum);
+    const isOwner = isCreator || isSessionOwner;
 
-  const botNum = cleanNum(botNumber || sock.user?.id || '');
-  // FIXED: Use raw sock.user.id, no rebuild with @s.whatsapp.net - LID safe
-  const botJid = sock.user?.id || '';
-  const sockUserRaw = sock.user?.id || '';
-  const botLid = sock.user?.lid || '';
-
-  let senderNum = cleanNum(sender);
-  if (m.key.fromMe) senderNum = botNum;
-
-  const CREATOR = cleanNum(config.creatorNumber || config.creator || "2348071569915");
-
-  const msg = m.message;
-  const type = Object.keys(msg)[0];
-  const body = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.viewOnceMessageV2?.message?.imageMessage?.caption || msg.viewOnceMessageV2?.message?.videoMessage?.caption || '';
-  const quoted = msg.extendedTextMessage?.contextInfo?.quotedMessage;
-
-  if (autoPlugin?.handleAuto) {
-    try { await autoPlugin.handleAuto(sock, m, { from, body, type, msg, isGroup, prefix: config.prefix }); } catch (e) { console.log('Auto error', e.message); }
-  }
-
-  let groupMeta = null;
-  let isAdmin = false;
-  let isBotAdmin = false;
-  if (isGroup) {
-    try {
-      groupMeta = await sock.groupMetadata(from);
-      const senderPartEarly = findParticipant(groupMeta, sender);
-      if (senderPartEarly) {
-        const real = realNumFromParticipant(senderPartEarly, sender);
-        if (real && real.length >= 7) senderNum = real;
+    if (autoPlugin?.handleAuto) {
+      try {
+        await autoPlugin.handleAuto(sock, message, {
+          from, body, type: messageType, msg: message.message, isGroup, prefix: config.prefix
+        });
+      } catch (error) {
+        console.error('[AUTO] Message handler failed:', error.message);
       }
-      if (m.key.fromMe) senderNum = botNum;
+    }
 
-      const senderPart = findParticipant(groupMeta, sender) || senderPartEarly;
-      isAdmin = !!senderPart?.admin;
+    let groupMeta = null;
+    let senderParticipant = null;
+    let isAdmin = false;
+    let isBotAdmin = false;
+    if (isGroup) {
+      try {
+        groupMeta = await sock.groupMetadata(from);
+        senderParticipant = findParticipant(groupMeta, sender);
+        isAdmin = Boolean(senderParticipant?.admin);
+        const botCandidates = [sock.user?.id, sock.user?.lid, botNumber].filter(Boolean).map(String);
+        const botNumbers = botCandidates.map(cleanNum).filter(Boolean);
+        const botParticipant = groupMeta.participants?.find(participant => {
+          if (botCandidates.includes(participant.id) || botCandidates.includes(participant.pn) || botCandidates.includes(participant.lid)) return true;
+          return [participant.id, participant.pn]
+            .some(value => value && botNumbers.includes(cleanNum(value)));
+        });
+        isBotAdmin = Boolean(botParticipant?.admin);
+      } catch (error) {
+        console.error('[GROUP] Could not load metadata:', error.message);
+      }
+    }
 
-      // ===== BOT ADMIN CHECK - FIXED LID =====
-      const botRawIds = [sock.user?.id, sock.user?.lid, botJid, botNum, botLid, sockUserRaw].filter(Boolean);
-      const botNums = botRawIds.map(x => cleanNum(x)).filter(Boolean);
-      const botPart = groupMeta.participants.find(p => {
-        if (botRawIds.includes(p.id)) return true;
-        if (p.pn && botRawIds.includes(p.pn)) return true;
-        if (p.lid && botRawIds.includes(p.lid)) return true;
-        const pNums = [cleanNum(p.id), p.pn ? cleanNum(p.pn) : '', p.lid ? cleanNum(p.lid) : ''].filter(Boolean);
-        if (pNums.some(n => botNums.includes(n))) return true;
-        return false;
-      });
-      isBotAdmin = !!botPart?.admin;
-      // DEBUG REMOVED
-    } catch (e) { console.log('GroupMeta fail', e.message); }
-  }
+    if (isGroup && antiPlugin?.cacheMessage) {
+      try {
+        // Signature is (sock, groupJid, message, body, type); passing all five
+        // arguments is required for real media download and anti-delete recovery.
+        await antiPlugin.cacheMessage(sock, from, message, body, messageType);
+      } catch (error) {
+        console.error('[ANTI-DELETE] Cache failed:', error.message);
+      }
+    }
 
-  const SESSION_OWNER = botNum;
-  const isCreator = senderNum === CREATOR;
-  const isSessionOwner = senderNum === SESSION_OWNER && SESSION_OWNER !== "";
-  const isOwner = isCreator || isSessionOwner;
+    if (isGroup && antiPlugin?.handleAnti) {
+      try {
+        const blocked = await antiPlugin.handleAnti(sock, message, {
+          from, sender, senderNum, isGroup, isOwner, isAdmin, isBotAdmin,
+          body, type: messageType, msg: message.message, groupMeta
+        });
+        if (blocked) continue;
+      } catch (error) {
+        console.error('[ANTI] Message checks failed:', error.message);
+      }
+    }
 
-  if (m.key.fromMe && !isOwner) return;
-
-  if (isGroup && antiPlugin?.cacheMessage) {
-    try { antiPlugin.cacheMessage(from, m, body, type); } catch {}
-  }
-  if (isGroup && antiPlugin?.handleAnti) {
-    try {
-      const blocked = await antiPlugin.handleAnti(sock, m, {
-        from, sender: sender || botJid, senderNum,
-        isGroup, isOwner, isAdmin, isBotAdmin,
-        body, type, msg
-      });
-      if (blocked) return;
-    } catch (e) { console.log('Anti error', e.message); }
-  }
-
-  if (global.db.banned.includes(senderNum)) {
-    if (!isOwner) {
+    if (global.db.banned.includes(senderNum) && !isOwner) {
       if (body.startsWith(config.prefix)) {
-        await sock.sendMessage(from, { text: '🚫 You are banned from using Knight XMD.\nContact owner: wa.me/' + CREATOR }, { quoted: m });
+        await sock.sendMessage(from, {
+          text: `🚫 You are banned from using Knight XMD.\nContact owner: wa.me/${creatorNum}`
+        }, { quoted: message });
       }
-      return;
+      continue;
     }
-  }
 
-  if (!body.startsWith(config.prefix)) return;
+    if (!body || !config.prefix || !body.startsWith(config.prefix)) continue;
+    const parts = body.slice(config.prefix.length).trim().split(/\s+/).filter(Boolean);
+    const commandName = parts.shift()?.toLowerCase();
+    if (!commandName) continue;
+    const args = parts;
+    const text = args.join(' ');
 
-  const args = body.slice(config.prefix.length).trim().split(/\s+/);
-  const cmdName = args.shift().toLowerCase();
-  const text = args.join(' ');
+    const plugin = plugins.find(candidate => {
+      if (!candidate?.command) return false;
+      return Array.isArray(candidate.command)
+        ? candidate.command.includes(commandName)
+        : candidate.command === commandName;
+    });
+    if (!plugin) continue;
 
-  const plugin = plugins.find(p => {
-    if (!p.command) return false;
-    if (Array.isArray(p.command)) return p.command.includes(cmdName);
-    return p.command === cmdName;
-  });
-  if (!plugin) return;
-
-  if (config.mode === 'private' && !isOwner) return;
-  if (config.mode === 'self' && !isOwner) return;
-
-  if (plugin.ownerOnly && !isOwner) return;
-  if (plugin.creatorOnly && !isCreator) return;
-
-  if (plugin.adminOnly) {
-    if (!isGroup) return;
-    if (!isAdmin && !isOwner) {
-      return sock.sendMessage(from, { text: `❌ Only group admins can use this.` }, { quoted: m });
+    if ((config.mode === 'private' || config.mode === 'self') && !isOwner) continue;
+    if (plugin.ownerOnly && !isOwner) continue;
+    if (plugin.creatorOnly && !isCreator) continue;
+    if (plugin.groupOnly && !isGroup) continue;
+    if (plugin.adminOnly && (!isGroup || (!isAdmin && !isOwner))) {
+      await sock.sendMessage(from, {
+        text: isGroup ? '❌ Only group admins can use this command.' : '❌ This command only works in a group.'
+      }, { quoted: message });
+      continue;
     }
-  }
 
-  // ===== FIXED: botAdminOnly BLOCK REMOVED =====
-  // Old code dey block here and show "Bot must be admin" rubbish.
-  // Now we let group.js handle am with clean message.
-  // No block here again.
+    const context = {
+      sock, m: message, from, sender, senderNum, botNumber: botNum, botJid,
+      isGroup, isOwner, isCreator, isSessionOwner, isAdmin, isBotAdmin,
+      groupMetadata: groupMeta, groupMeta, args, text, body,
+      quoted: message.message.extendedTextMessage?.contextInfo?.quotedMessage,
+      type: messageType, tiny: value => String(value), config,
+      prefix: config.prefix, command: commandName, runtime: formatRuntime, box,
+      reply: async (content, options = {}) => sock.sendMessage(from, {
+        text: String(content), mentions: options.mentions || []
+      }, { quoted: message }),
+      replyImage: async (url, caption) => sock.sendMessage(from, {
+        image: { url }, caption
+      }, { quoted: message })
+    };
 
-  if (plugin.groupOnly && !isGroup) return;
-
-  const ctx = {
-    sock, m, from, sender: sender || botJid, senderNum,
-    botNumber: botNum, botJid,
-    isGroup, isOwner, isCreator, isSessionOwner,
-    isAdmin, isBotAdmin,
-    groupMetadata: groupMeta,
-    groupMeta,
-    args, text, body, quoted, type,
-    tiny, config, prefix: config.prefix,
-    command: cmdName,
-    runtime: formatRuntime,
-    box,
-    reply: async (txt, opts = {}) => {
-      if (typeof txt !== 'string') txt = String(txt);
-      return sock.sendMessage(from, { text: txt, mentions: opts.mentions || [] }, { quoted: m });
-    },
-    replyImage: async (url, caption) => {
-      try { return sock.sendMessage(from, { image: { url }, caption }, { quoted: m }); }
-      catch { return sock.sendMessage(from, { text: caption }, { quoted: m }); }
+    try {
+      console.log(`[CMD] ${senderNum} -> ${config.prefix}${commandName} | owner:${isOwner} admin:${isAdmin} botAdmin:${isBotAdmin}`);
+      await plugin.run(context);
+    } catch (error) {
+      console.error(`[CMD] ${commandName} failed:`, error.stack || error.message);
+      await sock.sendMessage(from, { text: `❌ Command failed: ${error.message}` }, { quoted: message });
     }
-  };
-
-  try {
-    console.log(`[CMD] ${senderNum} -> ${config.prefix}${cmdName} | Owner:${isOwner} Creator:${isCreator} SessionOwner:${isSessionOwner} Bot:${botNum} isAdmin:${isAdmin} isBotAdmin:${isBotAdmin}`);
-    await plugin.run(ctx);
-  } catch (e) {
-    console.log('CMD error', cmdName, e.message);
-    await sock.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: m });
   }
 }
 
 function setupAntiDelete(sock) {
-  try {
-    sock.ev.on('messages.update', async (updates) => {
+  if (!sock?.ev || sock.__antiDeleteHandlerAttached) return;
+  sock.__antiDeleteHandlerAttached = true;
+  sock.ev.on('messages.update', async updates => {
+    for (const update of updates || []) {
+      if (update.update?.message !== null) continue;
       try {
-        if (!antiPlugin?.handleDelete) return;
-        for (const u of updates) {
-          if (u.update?.message === null) await antiPlugin.handleDelete(sock, u);
-        }
-      } catch {}
-    });
-  } catch {}
+        await antiPlugin?.handleDelete?.(sock, update);
+      } catch (error) {
+        console.error('[ANTI-DELETE] Recovery failed:', error.message);
+      }
+    }
+  });
 }
 
-function setupAuto(sock) {
-  try { if (autoPlugin?.restoreAuto) autoPlugin.restoreAuto(sock); } catch {}
+function setupParticipantUpdates(sock) {
+  if (!sock?.ev || sock.__antiParticipantHandlerAttached) return;
+  sock.__antiParticipantHandlerAttached = true;
+  sock.ev.on('group-participants.update', async update => {
+    try {
+      await antiPlugin?.handleParticipantUpdate?.(sock, update);
+    } catch (error) {
+      console.error('[ANTI-FAKE] Participant update failed:', error.message);
+    }
+  });
 }
 
 function setupHandlers(sock) {
   setupAntiDelete(sock);
-  setupAuto(sock);
+  setupParticipantUpdates(sock);
+  try { autoPlugin?.restoreAuto?.(sock); }
+  catch (error) { console.error('[AUTO] Could not restore automation:', error.message); }
 }
 
-module.exports = { handleMessage, loadPlugins, setupAntiDelete, setupAuto, setupHandlers, plugins: () => plugins, antiPlugin, autoPlugin };
+module.exports = {
+  handleMessage, loadPlugins, setupAntiDelete, setupParticipantUpdates,
+  setupHandlers, plugins: () => plugins, antiPlugin, autoPlugin
+};
