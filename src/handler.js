@@ -86,7 +86,7 @@ function formatRuntime(milliseconds) {
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainder = seconds % 60;
   if (days) return `${days}d ${hours}h ${minutes}m`;
-  if (hours) return `${hours}h ${minutes}m ${remainder}s`;
+  if (hours) return `${hours}m ${remainder}s`;
   if (minutes) return `${minutes}m ${remainder}s`;
   return `${remainder}s`;
 }
@@ -98,6 +98,14 @@ function box(title, lines) {
 function getMessageText(message) {
   const content = message?.message;
   if (!content) return '';
+  // ✅ ADDED: Button Click - Bottom Method
+  if (content.buttonsResponseMessage?.selectedButtonId) {
+    return content.buttonsResponseMessage.selectedButtonId;
+  }
+  // ✅ ADDED: List Click
+  if (content.listResponseMessage?.singleSelectReply?.selectedRowId) {
+    return content.listResponseMessage.singleSelectReply.selectedRowId;
+  }
   const candidates = [
     content.conversation,
     content.extendedTextMessage?.text,
@@ -127,7 +135,6 @@ async function handleMessage(sock, update, botNumber) {
 
     const botJid = sock.user?.id || '';
     const botNum = cleanNum(botNumber || botJid);
-    // FIX: senderNum go resolve to real PN after groupMeta, no be LID
     let senderNum = message.key.fromMe ? botNum : cleanNum(sender);
     const creatorNum = cleanNum(config.creatorNumber || config.creator || '');
     const body = getMessageText(message);
@@ -151,7 +158,6 @@ async function handleMessage(sock, update, botNumber) {
       try {
         groupMeta = await sock.groupMetadata(from);
         senderParticipant = findParticipant(groupMeta, sender);
-        // FIX: Real phone from PN - LID fix for ban/owner/anti
         if (senderParticipant?.pn) senderNum = cleanNum(senderParticipant.pn);
         else if (senderParticipant?.id?.endsWith('@s.whatsapp.net')) senderNum = cleanNum(senderParticipant.id);
         isAdmin = Boolean(senderParticipant?.admin);
@@ -172,7 +178,6 @@ async function handleMessage(sock, update, botNumber) {
     const isSessionOwner = Boolean(botNum && senderNum === botNum);
     const isOwner = isCreator || isSessionOwner;
 
-    // ===== ANTI CONNECTED - 1. Cache FIRST (for antidelete) =====
     if (isGroup && antiPlugin?.cacheMessage) {
       try {
         await antiPlugin.cacheMessage(sock, from, message, body, messageType);
@@ -181,7 +186,6 @@ async function handleMessage(sock, update, botNumber) {
       }
     }
 
-    // ===== ANTI CONNECTED - 2. Check + block BEFORE commands =====
     if (isGroup && antiPlugin?.handleAnti) {
       try {
         const blocked = await antiPlugin.handleAnti(sock, message, {
@@ -203,8 +207,22 @@ async function handleMessage(sock, update, botNumber) {
       continue;
     }
 
-    if (!body || !config.prefix || !body.startsWith(config.prefix)) continue;
-    const parts = body.slice(config.prefix.length).trim().split(/\s+/).filter(Boolean);
+    // ✅ ADDED: Button Click check
+    const isButtonClick = Boolean(
+      message.message?.buttonsResponseMessage?.selectedButtonId ||
+      message.message?.listResponseMessage?.singleSelectReply?.selectedRowId
+    );
+
+    if (!body) continue;
+    if (!isButtonClick && (!config.prefix || !body.startsWith(config.prefix))) continue;
+
+    let parts;
+    if (isButtonClick) {
+      parts = body.trim().split(/\s+/).filter(Boolean);
+    } else {
+      parts = body.slice(config.prefix.length).trim().split(/\s+/).filter(Boolean);
+    }
+
     const commandName = parts.shift()?.toLowerCase();
     if (!commandName) continue;
     const args = parts;
@@ -259,7 +277,6 @@ function setupAntiDelete(sock) {
   sock.__antiDeleteHandlerAttached = true;
   sock.ev.on('messages.update', async updates => {
     for (const update of updates || []) {
-      // FIX: delete na message === null OR stubType 68 (revoke)
       if (update.update?.message !== null && update.update?.messageStubType !== 68) continue;
       try {
         await antiPlugin?.handleDelete?.(sock, update);
@@ -282,7 +299,6 @@ function setupParticipantUpdates(sock) {
   });
 }
 
-// FIX: ONE setupHandlers only - no duplicate, no stray inside handleMessage
 function setupHandlers(sock) {
   setupAntiDelete(sock);
   setupParticipantUpdates(sock);
