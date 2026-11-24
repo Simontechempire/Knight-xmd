@@ -365,7 +365,9 @@ function setupAntiDelete(sock) {
     }
   });
 }
-
+// In handler.js after sock connected:
+const wlc = require('./plugins/welcome.js');
+if (wlc.attachEngine) wlc.attachEngine(sock);
 function setupParticipantUpdates(sock) {
   if (!sock?.ev || sock.__antiParticipantHandlerAttached) return;
   sock.__antiParticipantHandlerAttached = true;
