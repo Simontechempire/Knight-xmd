@@ -7,7 +7,7 @@ function box(title, lines) {
 
 function onlyGroup(isGroup, reply) {
   if (!isGroup) {
-    reply('❌ This command only works in a group.');
+    reply('❌ *this commands only work in group*.');
     return false;
   }
   return true;
