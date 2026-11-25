@@ -15,7 +15,7 @@
     "fs-extra": "^11.2.0",
     "@tensorflow/tfjs-node": "^4.17.0",
     "nsfwjs": "^2.4.2",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
     "pino": "^8.21.0",
     "wa-sticker-formatter": "^4.4.3",
     "yt-search": "^2.10.4",
