@@ -1,165 +1,195 @@
 const config = require('../config');
 
+const PFP = 'https://files.catbox.moe/4nbm9j.jpg';
+
+const header = (prefix) => `> ╭══〘 ⚔️ 𝗞𝗡𝗜𝗚𝗛𝗧 𝗫𝗠𝗗 〙══⊷❍
+> ┃✯╭─────────
+> ┃✯│ 👑 Creator: Faceless Tech
+> ┃✯│ ⚡ Prefix: ${prefix}
+> ┃✯│ 🌐 Mode: Public
+> ┃✯│ 🚀 Speed: Fast
+> ┃✯╰────────
+> ╰════════⊷❍\n\n`;
+
+// ===== ✅ ONE METHOD FOR ALL - PFP on top + Inline Bottom Click =====
+const sendBtn = async (sock, jid, text, btns, m) => {
+  await sock.sendMessage(jid, {
+    image: { url: PFP }, // ✅ Bot PFP for top
+    caption: text,
+    footer: '⚔️ KNIGHT XMD • Tap below',
+    buttonText: '🔄 Open Menu', // ✅ 1 bottom click
+    sections: [
+      {
+        title: '⚔️ KNIGHT XMD - Pick One',
+        rows: btns.map(b => ({
+          title: b.text,
+          rowId: b.id,
+          description: `Tap to open ${b.text}`
+        }))
+      }
+    ]
+  }, { quoted: m });
+};
+
 module.exports = [
-  {
-    command: ['m', 'h'],
-    run: async ({ sock, from, m, prefix }) => {
-      const menu = `
-╔═══════════════════════╗
-║    ⚔ 𝕶𝕹𝕴𝕲𝕳𝕿 𝖃𝕸𝕯 ⚔
-╚═══════════════════════╝
-
-      『 𝕾𝖄𝕾𝕿𝕰𝕸 𝕴𝕹𝕱𝕺 』
-
-╭━━━━━━━━━━━━━━━━━━╮
-┃ ✦ 𝕯𝖊𝖛 : 𝕱𝖆𝖈𝖊𝖑𝖊𝖘𝖘 𝕿𝖊𝖈𝖍
-┃ ✦ 𝕻𝖗𝖊𝖋𝖎𝖝 : ${prefix}
-┃ ✦ 𝕸𝖔𝖉𝖊 : 𝕻𝖚𝖇𝖑𝖎𝖈
-┃ ✦ 𝕾𝖙𝖆𝖙𝖚𝖘 : 𝕺𝖓𝖑𝖎𝖓𝖊
-┃ ✦ 𝕽𝖊𝖑𝖊𝖆𝖘𝖊 : 𝖁𝟏
-╰━━━━━━━━━━━━━━━━━━╯
-
-◈━━━『 𝕺𝖂𝕹𝕰𝕽 』━━━◈
-┃
-┃ ⌬ .𝖒𝖊𝖓𝖚
-┃ ⌬ .𝖍𝖊𝖑𝖕
-┃ ⌬ .𝖕𝖎𝖓𝖌
-┃ ⌬ .𝖆𝖑𝖎𝖛𝖊
-┃ ⌬ .𝖔𝖜𝖓𝖊𝖗
-┃ ⌬ .𝖗𝖚𝖓𝖙𝖎𝖒𝖊
-┃ ⌬ .𝖇𝖔𝖙𝖎𝖓𝖋𝖔
-┃ ⌬ .𝖗𝖊𝖘𝖙𝖆𝖗𝖙
-┃ ⌬ .𝖘𝖍𝖚𝖙𝖉𝖔𝖜𝖓
-┃ ⌬ .𝖇𝖗𝖔𝖆𝖉𝖈𝖆𝖘𝖙
-┃ ⌬ .𝖘𝖊𝖙𝖕𝖗𝖊𝖋𝖎𝖝
-┃ ⌬ .𝖘𝖊𝖙𝖓𝖆𝖒𝖊
-┃ ⌬ .𝖘𝖊𝖙𝖇𝖎𝖔
-┃ ⌬ .𝖘𝖊𝖙𝖕𝖕
-┃ ⌬ .𝖏𝖔𝖎𝖓
-┃ ⌬ .𝖑𝖊𝖆𝖛𝖊
-┃ ⌬ .𝖇𝖑𝖔𝖈𝖐
-┃ ⌬ .𝖚𝖓𝖇𝖑𝖔𝖈𝖐
-┃ ⌬ .𝖇𝖆𝖓
-┃ ⌬ .𝖚𝖓𝖇𝖆𝖓
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕬𝖀𝕿𝕺 』━━━◈
-┃
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖗𝖊𝖆𝖉
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖙𝖞𝖕𝖎𝖓𝖌
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖔𝖓𝖑𝖎𝖓𝖊
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖗𝖊𝖈𝖔𝖗𝖉𝖎𝖓𝖌
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖗𝖊𝖆𝖈𝖙
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖗𝖊𝖕𝖑𝖞
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖘𝖙𝖎𝖈𝖐𝖊𝖗
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖛𝖎𝖊𝖜
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖇𝖎𝖔
-┃ ⌬ .𝖆𝖚𝖙𝖔𝖑𝖎𝖐𝖊𝖘𝖙𝖆𝖙𝖚𝖘
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕬𝕹𝕿𝕴 』━━━◈
-┃
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖑𝖎𝖓𝖐
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖇𝖔𝖙
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖘𝖕𝖆𝖒
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖋𝖑𝖔𝖔𝖉
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖙𝖆𝖌
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖉𝖊𝖑𝖊𝖙𝖊
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖇𝖆𝖉𝖜𝖔𝖗𝖉
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖘𝖙𝖎𝖈𝖐𝖊𝖗
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖋𝖆𝖐𝖊
-┃ ⌬ .𝖆𝖓𝖙𝖎𝖕𝖗𝖔𝖒𝖔𝖙𝖊
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕸𝕺𝕯𝕰𝕽𝕬𝕿𝕺𝕽 』━━━◈
-┃
-┃ ⌬ .𝖐𝖎𝖈𝖐
-┃ ⌬ .𝖆𝖉𝖉
-┃ ⌬ .𝖕𝖗𝖔𝖒𝖔𝖙𝖊
-┃ ⌬ .𝖉𝖊𝖒𝖔𝖙𝖊
-┃ ⌬ .𝖜𝖆𝖗𝖓
-┃ ⌬ .𝖜𝖆𝖗𝖓𝖎𝖓𝖌𝖘
-┃ ⌬ .𝖗𝖊𝖘𝖊𝖙𝖜𝖆𝖗𝖓
-┃ ⌬ .𝖒𝖚𝖙𝖊
-┃ ⌬ .𝖚𝖓𝖒𝖚𝖙𝖊
-┃ ⌬ .𝖉𝖊𝖑𝖊𝖙𝖊
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕲𝕽𝕺𝖀𝕻 』━━━◈
-┃
-┃ ⌬ .𝖌𝖗𝖔𝖚𝖕𝖎𝖓𝖋𝖔
-┃ ⌬ .𝖌𝖗𝖔𝖚𝖕𝖑𝖎𝖓𝖐
-┃ ⌬ .𝖘𝖊𝖙𝖓𝖆𝖒𝖊
-┃ ⌬ .𝖘𝖊𝖙𝖉𝖊𝖘𝖈
-┃ ⌬ .𝖔𝖕𝖊𝖓
-┃ ⌬ .𝖈𝖑𝖔𝖘𝖊
-┃ ⌬ .𝖙𝖆𝖌𝖆𝖑𝖑
-┃ ⌬ .𝖍𝖎𝖉𝖊𝖙𝖆𝖌
-┃ ⌬ .𝖑𝖎𝖘𝖙𝖒𝖊𝖒𝖇𝖊𝖗𝖘
-┃ ⌬ .𝖆𝖉𝖒𝖎𝖓𝖘
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝖁𝖁 』━━━◈
-┃ ⌬ .𝖛𝖛
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕯𝕺𝖂𝕹𝕷𝕺𝕬𝕯𝕰𝕽 』━━━◈
-┃
-┃ ⌬ .𝖕𝖑𝖆𝖞
-┃ ⌬ .𝖘𝖔𝖓𝖌
-┃ ⌬ .𝖛𝖎𝖉𝖊𝖔
-┃ ⌬ .𝖙𝖎𝖐𝖙𝖔𝖐
-┃ ⌬ .𝖎𝖓𝖘𝖙𝖆𝖌𝖗𝖆𝖒
-┃ ⌬ .𝖋𝖆𝖈𝖊𝖇𝖔𝖔𝖐
-┃ ⌬ .𝖒𝖊𝖉𝖎𝖆𝖋𝖎𝖗𝖊
-┃ ⌬ .𝖆𝖕𝖐
-┃ ⌬ .𝖕𝖎𝖓𝖙𝖊𝖗𝖊𝖘𝖙
-┃ ⌬ .𝖌𝖎𝖙𝖍𝖚𝖇
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕿𝕺𝕺𝕷𝕾 』━━━◈
-┃
-┃ ⌬ .𝖜𝖊𝖆𝖙𝖍𝖊𝖗
-┃ ⌬ .𝖙𝖗𝖆𝖓𝖘𝖑𝖆𝖙𝖊
-┃ ⌬ .𝖈𝖆𝖑𝖈𝖚𝖑𝖆𝖙𝖊
-┃ ⌬ .𝖘𝖍𝖔𝖗𝖙𝖚𝖗𝖑
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕾𝕰𝕿𝕿𝕴𝕹𝕲𝕾 』━━━◈
-┃
-┃ ⌬ .𝖕𝖗𝖊𝖋𝖎𝖝
-┃ ⌬ .𝖕𝖚𝖇𝖑𝖎𝖈
-┃ ⌬ .𝖕𝖗𝖎𝖛𝖆𝖙𝖊
-┃ ⌬ .𝖘𝖊𝖙𝖒𝖔𝖉𝖊
-┃ ⌬ .𝖑𝖆𝖓𝖌𝖚𝖆𝖌𝖊
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕾𝕿𝕴𝕮𝕶𝕰𝕽 』━━━◈
-┃
-┃ ⌬ .𝖘𝖙𝖎𝖈𝖐𝖊𝖗
-┃ ⌬ .𝖙𝖔𝖎𝖒𝖌
-┃ ⌬ .𝖙𝖆𝖐𝖊
-┃ ⌬ .𝖆𝖙𝖙𝖕
-┃ ⌬ .𝖘𝖒𝖊𝖒𝖊
-◈━━━━━━━━━━━━━━━━━━◈
-
-◈━━━『 𝕱𝖀𝕹 』━━━◈
-┃
-┃ ⌬ .𝖏𝖔𝖐𝖊
-┃ ⌬ .𝖖𝖚𝖔𝖙𝖊
-┃ ⌬ .𝖒𝖊𝖒𝖊
-┃ ⌬ .𝖙𝖗𝖚𝖙𝖍
-┃ ⌬ .𝖉𝖆𝖗𝖊
-◈━━━━━━━━━━━━━━━━━━◈
-
-       ⚔ 𝕶𝕹𝕴𝕲𝕳𝕿 𝖃𝕸𝕯
-     𝕻𝕺𝖂𝕰𝕽 • 𝕷𝕺𝖄𝕬𝕷𝕿𝖄 • 𝕰𝖃𝕮𝕰𝕷𝕷𝕰𝕹𝕮𝕰
-`;
-
-      await sock.sendMessage(from, {
-        image: { url: 'https://files.catbox.moe/4nbm9j.jpg' },
-        caption: menu
-      }, { quoted: m });
-    }
+{
+  command: ['bottonmenu','bottonhelp'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚔️ *KNIGHT XMD MAIN MENU*\n\nᴏᴡɴᴇʀ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴍᴇɴᴜ\n┆ ◈ .ʜᴇʟᴘ\n┆ ◈ .ᴘɪɴɢ\n┆ ◈ .ᴀʟɪᴠᴇ\n┆ ◈ .ᴏᴡɴᴇʀ\n┆ ◈ .ʀᴜɴᴛɪᴍᴇ\n┆ ◈ .ʙᴏᴛɪɴꜰᴏ\n┆ ◈ .ʀᴇꜱᴛᴀʀᴛ\n┆ ◈ .ꜱʜᴜᴛᴅᴏᴡɴ\n┆ ◈ .ʙʀᴏᴀᴅᴄᴀꜱᴛ\n┆ ◈ .ꜱᴇᴛᴘʀᴇꜰɪx\n┆ ◈ .ꜱᴇᴛɴᴀᴍᴇ\n┆ ◈ .ꜱᴇᴛʙɪᴏ\n┆ ◈ .ꜱᴇᴛᴘᴘ\n┆ ◈ .ᴊᴏɪɴ\n┆ ◈ .ʟᴇᴀᴠᴇ\n┆ ◈ .ʙʟᴏᴄᴋ\n┆ ◈ .ᴜɴʙʟᴏᴄᴋ\n┆ ◈ .ʙᴀɴ\n┆ ◈ .ᴜɴʙᴀɴ\n╰──────────◈\n\nᴀᴜᴛᴏ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴀᴅ\n┆ ◈ .ᴀᴜᴛᴏᴛʏᴘɪɴɢ\n┆ ◈ .ᴀᴜᴛᴏᴏɴʟɪɴᴇ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴄᴏʀᴅɪɴɢ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴀᴄᴛ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴘʟʏ\n┆ ◈ .ᴀᴜᴛᴏꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴀᴜᴛᴏᴠɪᴇᴡ\n┆ ◈ .ᴀᴜᴛᴏʙɪᴏ\n┆ ◈ .ᴀᴜᴛᴏʟɪᴋᴇꜱᴛᴀᴛᴜꜱ\n╰──────────◈\n\nᴀɴᴛɪ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴀɴᴛɪʟɪɴᴋ\n┆ ◈ .ᴀɴᴛɪʙᴏᴛ\n┆ ◈ .ᴀɴᴛɪꜱᴘᴀᴍ\n┆ ◈ .ᴀɴᴛɪꜰʟᴏᴏᴅ\n┆ ◈ .ᴀɴᴛɪᴛᴀɢ\n┆ ◈ .ᴀɴᴛɪᴅᴇʟᴇᴛᴇ\n┆ ◈ .ᴀɴᴛɪʙᴀᴅᴡᴏʀᴅ\n┆ ◈ .ᴀɴᴛɪꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴀɴᴛɪꜰᴀᴋᴇ\n┆ ◈ .ᴀɴᴛɪᴘʀᴏᴍᴏᴛᴇ\n╰──────────◈\n\nᴍᴏᴅᴇʀᴀᴛᴏʀ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴋɪᴄᴋ\n┆ ◈ .ᴀᴅᴅ\n┆ ◈ .ᴘʀᴏᴍᴏᴛᴇ\n┆ ◈ .ᴅᴇᴍᴏᴛᴇ\n┆ ◈ .ᴡᴀʀɴ\n┆ ◈ .ᴡᴀʀɴɪɴɢꜱ\n┆ ◈ .ʀᴇꜱᴇᴛᴡᴀʀɴ\n┆ ◈ .ᴍᴜᴛᴇ\n┆ ◈ .ᴜɴᴍᴜᴛᴇ\n┆ ◈ .ᴅᴇʟᴇᴛᴇ\n╰──────────◈\n\nɢʀᴏᴜᴘ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ɢʀᴏᴜᴘɪɴꜰᴏ\n┆ ◈ .ɢʀᴏᴜᴘʟɪɴᴋ\n┆ ◈ .ꜱᴇᴛɴᴀᴍᴇ\n┆ ◈ .ꜱᴇᴛᴅᴇꜱᴄ\n┆ ◈ .ᴏᴘᴇɴ\n┆ ◈ .ᴄʟᴏꜱᴇ\n┆ ◈ .ᴛᴀɢᴀʟʟ\n┆ ◈ .ʜɪᴅᴇᴛᴀɢ\n┆ ◈ .ʟɪꜱᴛᴍᴇᴍʙᴇʀꜱ\n┆ ◈ .ᴀᴅᴍɪɴꜱ\n╰──────────◈\n\nⱽⱽ ᴹᴱᴺᵁ\n╭──────────◈\n┆ ◈ .ᴠᴠ\n╰──────────◈\n\nᴅᴏᴡɴʟᴏᴀᴅᴇʀ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴘʟᴀʏ\n┆ ◈ .ꜱᴏɴɢ\n┆ ◈ .ᴠɪᴅᴇᴏ\n┆ ◈ .ᴛɪᴋᴛᴏᴋ\n┆ ◈ .ɪɴꜱᴛᴀɢʀᴀᴍ\n┆ ◈ .ꜰᴀᴄᴇʙᴏᴏᴋ\n┆ ◈ .ᴍᴇᴅɪᴀꜰɪʀᴇ\n┆ ◈ .ᴀᴘᴋ\n┆ ◈ .ᴘɪɴᴛᴇʀᴇꜱᴛ\n┆ ◈ .ɢɪᴛʜᴜʙ\n╰──────────◈\n\nᴛᴏᴏʟꜱ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴡᴇᴀᴛʜᴇʀ\n┆ ◈ .ᴛʀᴀɴꜱʟᴀᴛᴇ\n┆ ◈ .ᴄᴀʟᴄᴜʟᴀᴛᴇ\n┆ ◈ .ꜱʜᴏʀᴛᴜʀʟ\n╰──────────◈\n\nꜱᴇᴛᴛɪɴɢꜱ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴘʀᴇꜰɪx\n┆ ◈ .ᴘᴜʙʟɪᴄ\n┆ ◈ .ᴘʀɪᴠᴀᴛᴇ\n┆ ◈ .ꜱᴇᴛᴍᴏᴅᴇ\n┆ ◈ .ʟᴀɴɢᴜᴀɢᴇ\n╰──────────◈\n\nꜱᴛɪᴄᴋᴇʀ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴛᴏɪᴍɢ\n┆ ◈ .ᴛᴀᴋᴇ\n┆ ◈ .ᴀᴛᴛᴘ\n┆ ◈ .ꜱᴍᴇᴍᴇ\n╰──────────◈\n\nꜰᴜɴ ᴍᴇɴᴜ\n╭──────────◈\n┆ ◈ .ᴊᴏᴋᴇ\n┆ ◈ .ǫᴜᴏᴛᴇ\n┆ ◈ .ᴍᴇᴍᴇ\n┆ ◈ .ᴛʀᴜᴛʜ\n┆ ◈ .ᴅᴀʀᴇ\n╰──────────◈`, [
+      { id: 'gmenu', text: '👥 Gmenu' },
+      { id: 'gm', text: '🛡️ GM' },
+      { id: 'menu2', text: '➡️ Next' },
+    ], m);
   }
+},
+{
+  command: ['bmenu2'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚔️ *KNIGHT XMD - PAGE 2*\n\nPick one 👇`, [
+      { id: 'omenu', text: '👑 Owner' },
+      { id: 'amenu', text: '⚙️ Auto' },
+      { id: 'menu3', text: '➡️ Next' },
+    ], m);
+  }
+},
+{
+  command: ['menu3'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚔️ *KNIGHT XMD - PAGE 3*\n\nPick one 👇`, [
+      { id: 'antimenu', text: '🚫 Anti' },
+      { id: 'dmenu', text: '⬇️ Download' },
+      { id: 'menu4', text: '➡️ Next' },
+    ], m);
+  }
+},
+{
+  command: ['menu4'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚔️ *KNIGHT XMD - PAGE 4*\n\nPick one 👇`, [
+      { id: 'tmenu', text: '🛠️ Tools' },
+      { id: 'smenu', text: '😜 Sticker' },
+      { id: 'menu5', text: '➡️ Next' },
+    ], m);
+  }
+},
+{
+  command: ['menu5'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚔️ *KNIGHT XMD - PAGE 5*\n\nPick one 👇`, [
+      { id: 'funmenu', text: '🎮 Fun' },
+      { id: 'setmenu', text: '⚙️ Settings' },
+      { id: 'menu', text: '⬅️ Back' },
+    ], m);
+  }
+},
+// ===== GMENU - GROUP =====
+{
+  command: ['gmenu','groupmenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `👥 *GMENU - GROUP COMMANDS*\n\n╭──────────◈\n┆ ◈ .ɢʀᴏᴜᴘɪɴꜰᴏ\n┆ ◈ .ɢʀᴏᴜᴘʟɪɴᴋ\n┆ ◈ .ꜱᴇᴛɴᴀᴍᴇ\n┆ ◈ .ꜱᴇᴛᴅᴇꜱᴄ\n┆ ◈ .ᴏᴘᴇɴ\n┆ ◈ .ᴄʟᴏꜱᴇ\n┆ ◈ .ᴛᴀɢᴀʟʟ\n┆ ◈ .ʜɪᴅᴇᴛᴀɢ\n┆ ◈ .ʟɪꜱᴛᴍᴇᴍʙᴇʀꜱ\n┆ ◈ .ᴀᴅᴍɪɴꜱ\n╰──────────◈`, [
+      { id: 'gm', text: '🛡️ GM' },
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'tagall', text: '👥 TagAll' },
+    ], m);
+  }
+},
+// ===== GM - MODERATOR =====
+{
+  command: ['gm','modmenu','moderator'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `🛡️ *GM - MODERATOR COMMANDS*\n\n╭──────────◈\n┆ ◈ .ᴋɪᴄᴋ\n┆ ◈ .ᴀᴅᴅ\n┆ ◈ .ᴘʀᴏᴍᴏᴛᴇ\n┆ ◈ .ᴅᴇᴍᴏᴛᴇ\n┆ ◈ .ᴡᴀʀɴ\n┆ ◈ .ᴡᴀʀɴɪɴɢꜱ\n┆ ◈ .ʀᴇꜱᴇᴛᴡᴀʀɴ\n┆ ◈ .ᴍᴜᴛᴇ\n┆ ◈ .ᴜɴᴍᴜᴛᴇ\n┆ ◈ .ᴅᴇʟᴇᴛᴇ\n╰──────────◈`, [
+      { id: 'gmenu', text: '👥 Gmenu' },
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'kick', text: '❌ Kick' },
+    ], m);
+  }
+},
+// ===== OMENU - OWNER =====
+{
+  command: ['omenu','ownermenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `👑 *OWNER MENU*\n\n╭──────────◈\n┆ ◈ .ᴍᴇɴᴜ\n┆ ◈ .ʜᴇʟᴘ\n┆ ◈ .ᴘɪɴɢ\n┆ ◈ .ᴀʟɪᴠᴇ\n┆ ◈ .ᴏᴡɴᴇʀ\n┆ ◈ .ʀᴜɴᴛɪᴍᴇ\n┆ ◈ .ʙᴏᴛɪɴꜰᴏ\n┆ ◈ .ʀᴇꜱᴛᴀʀᴛ\n┆ ◈ .ꜱʜᴜᴛᴅᴏᴡɴ\n┆ ◈ .ʙʀᴏᴀᴅᴄᴀꜱᴛ\n┆ ◈ .ꜱᴇᴛᴘʀᴇꜰɪx\n┆ ◈ .ꜱᴇᴛɴᴀᴍᴇ\n┆ ◈ .ꜱᴇᴛʙɪᴏ\n┆ ◈ .ꜱᴇᴛᴘᴘ\n┆ ◈ .ᴊᴏɪɴ\n┆ ◈ .ʟᴇᴀᴠᴇ\n┆ ◈ .ʙʟᴏᴄᴋ\n┆ ◈ .ᴜɴʙʟᴏᴄᴋ\n┆ ◈ .ʙᴀɴ\n┆ ◈ .ᴜɴʙᴀɴ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'ping', text: '⚡ Ping' },
+      { id: 'alive', text: '💚 Alive' },
+    ], m);
+  }
+},
+// ===== AMENU - AUTO =====
+{
+  command: ['amenu','automenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚙️ *AUTO MENU*\n\n╭──────────◈\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴀᴅ\n┆ ◈ .ᴀᴜᴛᴏᴛʏᴘɪɴɢ\n┆ ◈ .ᴀᴜᴛᴏᴏɴʟɪɴᴇ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴄᴏʀᴅɪɴɢ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴀᴄᴛ\n┆ ◈ .ᴀᴜᴛᴏʀᴇᴘʟʏ\n┆ ◈ .ᴀᴜᴛᴏꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴀᴜᴛᴏᴠɪᴇᴡ\n┆ ◈ .ᴀᴜᴛᴏʙɪᴏ\n┆ ◈ .ᴀᴜᴛᴏʟɪᴋᴇꜱᴛᴀᴛᴜꜱ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'antimenu', text: '🚫 Anti' },
+      { id: 'gm', text: '🛡️ GM' },
+    ], m);
+  }
+},
+// ===== ANTI =====
+{
+  command: ['antimenu','antim'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `🚫 *ANTI MENU*\n\n╭──────────◈\n┆ ◈ .ᴀɴᴛɪʟɪɴᴋ\n┆ ◈ .ᴀɴᴛɪʙᴏᴛ\n┆ ◈ .ᴀɴᴛɪꜱᴘᴀᴍ\n┆ ◈ .ᴀɴᴛɪꜰʟᴏᴏᴅ\n┆ ◈ .ᴀɴᴛɪᴛᴀɢ\n┆ ◈ .ᴀɴᴛɪᴅᴇʟᴇᴛᴇ\n┆ ◈ .ᴀɴᴛɪʙᴀᴅᴡᴏʀᴅ\n┆ ◈ .ᴀɴᴛɪꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴀɴᴛɪꜰᴀᴋᴇ\n┆ ◈ .ᴀɴᴛɪᴘʀᴏᴍᴏᴛᴇ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'amenu', text: '⚙️ Auto' },
+      { id: 'gmenu', text: '👥 Gmenu' },
+    ], m);
+  }
+},
+// ===== DMENU - DOWNLOADER + VV =====
+{
+  command: ['dmenu','dlmenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⬇️ *DOWNLOADER MENU*\n\n╭──────────◈\n┆ ◈ .ᴘʟᴀʏ\n┆ ◈ .ꜱᴏɴɢ\n┆ ◈ .ᴠɪᴅᴇᴏ\n┆ ◈ .ᴛɪᴋᴛᴏᴋ\n┆ ◈ .ɪɴꜱᴛᴀɢʀᴀᴍ\n┆ ◈ .ꜰᴀᴄᴇʙᴏᴏᴋ\n┆ ◈ .ᴍᴇᴅɪᴀꜰɪʀᴇ\n┆ ◈ .ᴀᴘᴋ\n┆ ◈ .ᴘɪɴᴛᴇʀᴇꜱᴛ\n┆ ◈ .ɢɪᴛʜᴜʙ\n╰──────────◈\n\nⱽⱽ ᴹᴱᴺᵁ\n╭──────────◈\n┆ ◈ .ᴠᴠ\n╰──────────◈`, [
+      { id: 'play', text: '🎵 Play' },
+      { id: 'video', text: '🎥 Video' },
+      { id: 'menu', text: '🏠 Main' },
+    ], m);
+  }
+},
+// ===== TMENU - TOOLS =====
+{
+  command: ['tmenu','toolsmenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `🛠️ *TOOLS MENU*\n\n╭──────────◈\n┆ ◈ .ᴡᴇᴀᴛʜᴇʀ\n┆ ◈ .ᴛʀᴀɴꜱʟᴀᴛᴇ\n┆ ◈ .ᴄᴀʟᴄᴜʟᴀᴛᴇ\n┆ ◈ .ꜱʜᴏʀᴛᴜʀʟ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'funmenu', text: '🎮 Fun' },
+      { id: 'smenu', text: '😜 Sticker' },
+    ], m);
+  }
+},
+// ===== SMENU - STICKER =====
+{
+  command: ['smenu','stickermenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `😜 *STICKER MENU*\n\n╭──────────◈\n┆ ◈ .ꜱᴛɪᴄᴋᴇʀ\n┆ ◈ .ᴛᴏɪᴍɢ\n┆ ◈ .ᴛᴀᴋᴇ\n┆ ◈ .ᴀᴛᴛᴘ\n┆ ◈ .ꜱᴍᴇᴍᴇ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'sticker', text: '😜 Sticker' },
+      { id: 'tmenu', text: '🛠️ Tools' },
+    ], m);
+  }
+},
+// ===== FUN =====
+{
+  command: ['funmenu','fun'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `🎮 *FUN MENU*\n\n╭──────────◈\n┆ ◈ .ᴊᴏᴋᴇ\n┆ ◈ .ǫᴜᴏᴛᴇ\n┆ ◈ .ᴍᴇᴍᴇ\n┆ ◈ .ᴛʀᴜᴛʜ\n┆ ◈ .ᴅᴀʀᴇ\n╰──────────◈`, [
+      { id: 'joke', text: '😂 Joke' },
+      { id: 'meme', text: '🤣 Meme' },
+      { id: 'menu', text: '🏠 Main' },
+    ], m);
+  }
+},
+// ===== SETTINGS =====
+{
+  command: ['setmenu','settingsmenu'],
+  run: async ({ sock, m, from, prefix }) => {
+    await sendBtn(sock, from, header(prefix) + `⚙️ *SETTINGS MENU*\n\n╭──────────◈\n┆ ◈ .ᴘʀᴇꜰɪx\n┆ ◈ .ᴘᴜʙʟɪᴄ\n┆ ◈ .ᴘʀɪᴠᴀᴛᴇ\n┆ ◈ .ꜱᴇᴛᴍᴏᴅᴇ\n┆ ◈ .ʟᴀɴɢᴜᴀɢᴇ\n╰──────────◈`, [
+      { id: 'menu', text: '🏠 Main' },
+      { id: 'gmenu', text: '👥 Gmenu' },
+      { id: 'gm', text: '🛡️ GM' },
+    ], m);
+  }
+},
 ];
