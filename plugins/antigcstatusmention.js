@@ -1,7 +1,7 @@
 // KNIGHT XMD - REAL Anti GC Status Mention - Auto
 // File: plugins/antigcstatusmention.js
-// REAL: Only group message wey mention group fit delete. Status tab bot no fit see.
-// .antigcstatus on / off
+// REAL LIMIT: Bot fit delete only the group message wey WhatsApp push because of status mention.
+// E NO fit delete Status tab. WhatsApp no allow am.
 
 const fs = require('fs');
 const path = require('path');
@@ -15,18 +15,41 @@ function save(p, d) {
   fs.writeFileSync(p, JSON.stringify(d, null, 2));
 }
 
+function unwrap(msg) {
+  if (!msg) return null;
+  if (msg.viewOnceMessage) return unwrap(msg.viewOnceMessage.message);
+  if (msg.viewOnceMessageV2) return unwrap(msg.viewOnceMessageV2.message);
+  if (msg.ephemeralMessage) return unwrap(msg.ephemeralMessage.message);
+  return msg;
+}
+
+// REAL admin check - no isBotAdmin guess
+async function isBotAdminReal(sock, from) {
+  try {
+    const meta = await sock.groupMetadata(from);
+    const meId = sock.user?.id || '';
+    const meNum = meId.split(':')[0].split('@')[0];
+    const entry = meta.participants.find(p => {
+      const n = (p.id || '').split(':')[0].split('@')[0];
+      return n === meNum || p.id === meId;
+    });
+    return entry?.admin === 'admin' || entry?.admin === 'superadmin';
+  } catch (e) {
+    console.log('[ANTIGCSTATUS ADMIN CHECK]', e.message);
+    return null;
+  }
+}
+
 module.exports = [
-  // ===== COMMAND: .antigcstatus on / off =====
+  // ===== .antigcstatus on / off =====
   {
     command: ['antigcstatus', 'antigcstatusmention'],
-    groupOnly: true,
-    adminOnly: true,
-    run: async ({ from, reply, args, isGroup }) => {
-      if (!isGroup) return reply('❌ Only in groups');
+    run: async ({ from, reply, args }) => {
+      if (!from?.endsWith('@g.us')) return reply('❌ Only in groups');
       const input = (args[0] || '').toLowerCase();
       const db = load(DB_PATH);
       if (!input) {
-        const on = db[from]?.on !== false; // default ON
+        const on = db[from]?.on !== false;
         return reply(`🛡️ Anti GC Status Mention: ${on ? 'ON ✅' : 'OFF ❌'}\n\n.antigcstatus on - Delete + Warn\n.antigcstatus off - Allow`);
       }
       if (input === 'on' || input === 'off') {
@@ -38,86 +61,98 @@ module.exports = [
     }
   },
 
-  // ===== AUTO: Delete + Warn + Kick =====
+  // ===== AUTO - MUST run for every message =====
   {
     all: true,
-    groupOnly: true,
-    run: async ({ sock, m, from, sender, isBotAdmin }) => {
+    run: async ({ sock, m, from, sender }) => {
       try {
         if (!m?.message) return;
         if (m.key?.fromMe) return;
-        if (!from?.endsWith('@g.us')) return; // REAL: Only group messages bot fit see
+        if (!from?.endsWith('@g.us')) return;
 
-        // Check if enabled - default ON
         const cfg = load(DB_PATH);
         if (cfg[from]?.on === false) return;
 
-        // Bot must be admin to delete/kick, else no fit do anything
-        if (isBotAdmin === false) return;
+        // REAL sender - use m.key.participant, NOT sender param wey fit be LID
+        const realSender = m.key.participant || sender;
+        if (!realSender) return;
 
-        const msg = m.message;
-        const ctx = msg.extendedTextMessage?.contextInfo
-          || msg.imageMessage?.contextInfo
-          || msg.videoMessage?.contextInfo
-          || msg.stickerMessage?.contextInfo
-          || msg.documentMessage?.contextInfo
+        const raw = unwrap(m.message);
+        if (!raw) return;
+
+        // Collect contextInfo from ALL message types - no guess
+        const ctx = raw.extendedTextMessage?.contextInfo
+          || raw.imageMessage?.contextInfo
+          || raw.videoMessage?.contextInfo
+          || raw.stickerMessage?.contextInfo
+          || raw.documentMessage?.contextInfo
+          || raw.audioMessage?.contextInfo
+          || raw.contactMessage?.contextInfo
+          || raw.locationMessage?.contextInfo
+          || raw.pollCreationMessage?.contextInfo
           || {};
 
         const mentioned = ctx.mentionedJid || [];
 
-        // ===== REAL DETECTION =====
-        // WhatsApp when you mention group in post/status, the message wey enter group get:
-        // mentionedJid contains the group JID itself (e.g 123@g.us)
-        // OR messageContextInfo contains status mention
-        // We check BOTH, no guessing with "@group" text
+        // ===== REAL DETECTION - 2 real ways WhatsApp send am =====
+        // 1. mentionedJid contains THIS group JID (e.g 120...@g.us) - this na group mention
         const mentionedThisGroup = mentioned.some(j => j === from);
-        const hasStatusMention = !!msg.messageContextInfo?.statusMention
-          || !!ctx?.statusMention
-          || JSON.stringify(msg).includes('statusMention');
 
-        // If user no mention this group, leave am - no false delete
-        if (!mentionedThisGroup && !hasStatusMention) return;
+        // 2. Status mention: WhatsApp set groupMentions in messageContextInfo
+        // Real structure: m.messageContextInfo.groupMentions = [{groupJid, groupSubject}]
+        // OR m.message.messageContextInfo.groupMentions
+        const groupMentions = m.messageContextInfo?.groupMentions
+          || raw.messageContextInfo?.groupMentions
+          || m.message?.messageContextInfo?.groupMentions
+          || [];
+        const hasGroupMentionInStatus = Array.isArray(groupMentions) && groupMentions.some(g => (g.groupJid || g.jid) === from);
 
-        // ===== 1. REAL DELETE FOR EVERYONE - Use REAL m.key from WhatsApp =====
-        const deleteKey = {
-          remoteJid: from,
-          fromMe: false,
-          id: m.key.id, // REAL id from WhatsApp, no be guessed stanzaId
-          participant: sender // REAL sender
-        };
-        try {
-          await sock.sendMessage(from, { delete: deleteKey });
-        } catch (e) {
-          console.log('[ANTIGCSTATUS DELETE]', e.message);
-          // If delete fail (old msg / no admin), still warn, no hide error
+        // 3. Quoted status mention: contextInfo.quotedMessage fit get group mention
+        const hasQuotedGroupMention = false; // no guess, no JSON.stringify
+
+        if (!mentionedThisGroup && !hasGroupMentionInStatus) return;
+
+        console.log(`[ANTIGCSTATUS] Detected group mention from ${realSender} in ${from} | mentionedGroup=${mentionedThisGroup} groupMentions=${hasGroupMentionInStatus}`);
+
+        // Bot must be admin - check real
+        const admin = await isBotAdminReal(sock, from);
+        if (admin === false) {
+          console.log('[ANTIGCSTATUS] Bot no be admin, cannot delete');
+          return;
         }
 
-        // ===== 2. REAL WARN COUNT - File DB, no be global.db =====
+        // ===== 1. DELETE - Use m.key DIRECTLY, no rebuild =====
+        // m.key already get: remoteJid, fromMe, id, participant - exactly wetin WhatsApp need
+        try {
+          await sock.sendMessage(from, { delete: m.key });
+          console.log(`[ANTIGCSTATUS] Deleted ${m.key.id}`);
+        } catch (e) {
+          console.log('[ANTIGCSTATUS DELETE FAIL]', e.message);
+          // If delete fail, still warn - no hide
+        }
+
+        // ===== 2. WARN =====
         const warnDB = load(WARN_PATH);
         warnDB[from] = warnDB[from] || {};
-        const targetNum = sender.split('@')[0].split(':')[0];
+        const targetNum = realSender.split('@')[0].split(':')[0];
         warnDB[from][targetNum] = (warnDB[from][targetNum] || 0) + 1;
         const count = warnDB[from][targetNum];
         save(WARN_PATH, warnDB);
 
-        // ===== 3. 2 WARNS = KICK =====
         if (count >= 2) {
           warnDB[from][targetNum] = 0;
           save(WARN_PATH, warnDB);
-          try {
-            await sock.groupParticipantsUpdate(from, [sender], 'remove');
-          } catch (e) { console.log('[ANTIGCSTATUS KICK]', e.message); return; }
+          try { await sock.groupParticipantsUpdate(from, [realSender], 'remove'); } catch (e) { console.log('[ANTIGCSTATUS KICK FAIL]', e.message); return; }
           await sock.sendMessage(from, {
             text: `🚨 *ANTI-GCSTATUS 2/2 - KICKED*\n\n👤 @${targetNum}\n🗑️ Mention group in status post deleted\n🦵 Kicked`,
-            mentions: [sender]
+            mentions: [realSender]
           });
           return;
         }
 
-        // ===== 4. WARN 1/2 =====
         await sock.sendMessage(from, {
           text: `⚠️ *ANTI-GCSTATUS WARN ${count}/2*\n\n👤 @${targetNum}\n🗑️ Mention group in status post deleted for everyone\n⚠️ No mention group for status again. 1 more = Kick`,
-          mentions: [sender]
+          mentions: [realSender]
         });
 
       } catch (e) {
