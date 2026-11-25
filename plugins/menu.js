@@ -2,7 +2,7 @@ const config = require('../config');
 
 module.exports = [
   {
-    command: ['m', 'h'],
+    command: ['menu', 'help'],
     run: async ({ sock, from, m, prefix }) => {
 
       const panel = (title, commands) => `
