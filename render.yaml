@@ -1,0 +1,13 @@
+services:
+    - type: web
+    name: knight-xmd
+    env: node
+    plan: free
+    buildCommand: npm install && npx yt-dlp-exec --version || true
+    startCommand: node server.js
+    autoDeploy: true
+    envVars:
+            - key: NODE_ENV
+        value: production
+            - key: PORT
+        value: 10000
