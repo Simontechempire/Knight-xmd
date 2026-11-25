@@ -1,7 +1,8 @@
-// KNIGHT XMD - REAL Delete For Everyone + Warn - Reply method
+// KNIGHT XMD - REAL Delete For Everyone - Reply method
 // File: plugins/gcstatusdelete.js
-// Usage: Reply to status/group post + .gcstatus delete
-//        Reply + .gwarn | .gunwarn | .gwarnings
+// No isBotAdmin guess, no sessionDB guess.
+// Bot go check admin by itself from groupMetadata.
+// Works for: text, image, video, sticker, document, viewOnce, ephemeral
 
 const fs = require('fs');
 const path = require('path');
@@ -16,62 +17,119 @@ function saveDB(d) {
   fs.writeFileSync(DB_PATH, JSON.stringify(d, null, 2));
 }
 
-// Get quoted message key - REAL from Baileys
+// Unwrap viewOnce / ephemeral / viewOnceV2 - REAL Baileys structure
+function unwrap(msg) {
+  if (!msg) return null;
+  if (msg.viewOnceMessage) return unwrap(msg.viewOnceMessage.message);
+  if (msg.viewOnceMessageV2) return unwrap(msg.viewOnceMessageV2.message);
+  if (msg.ephemeralMessage) return unwrap(msg.ephemeralMessage.message);
+  if (msg.documentWithCaptionMessage) return unwrap(msg.documentWithCaptionMessage.message);
+  return msg;
+}
+
 function getQuoted(m) {
-  const msg = m.message || {};
-  const ctx = msg.extendedTextMessage?.contextInfo
-    || msg.imageMessage?.contextInfo
-    || msg.videoMessage?.contextInfo
-    || msg.stickerMessage?.contextInfo
-    || msg.documentMessage?.contextInfo
+  // Case 1: handler already give m.quoted (some handlers do)
+  if (m.quoted?.key?.id) {
+    return {
+      key: {
+        remoteJid: m.key.remoteJid,
+        fromMe: false,
+        id: m.quoted.key.id,
+        participant: m.quoted.key.participant || m.quoted.participant || m.quoted.sender
+      },
+      participant: m.quoted.key.participant || m.quoted.participant || m.quoted.sender,
+      raw: m.quoted
+    };
+  }
+  // Case 2: raw Baileys - check every possible place
+  const raw = unwrap(m.message);
+  if (!raw) return null;
+  const ctx = raw.extendedTextMessage?.contextInfo
+    || raw.imageMessage?.contextInfo
+    || raw.videoMessage?.contextInfo
+    || raw.stickerMessage?.contextInfo
+    || raw.documentMessage?.contextInfo
+    || raw.audioMessage?.contextInfo
+    || raw.contactMessage?.contextInfo
+    || raw.locationMessage?.contextInfo
     || null;
   if (!ctx?.stanzaId) return null;
+
+  // participant for group: ctx.participant = "234...@s.whatsapp.net" or "...@lid"
+  // If e no get participant, use quotedMessage sender - WhatsApp need am for group delete
   return {
     key: {
-      remoteJid: m.key.remoteJid, // group id - REAL
-      fromMe: false, // quoted msg no be from bot
-      id: ctx.stanzaId, // REAL stanzaId from WhatsApp
-      participant: ctx.participant // REAL sender
+      remoteJid: m.key.remoteJid,
+      fromMe: false,
+      id: ctx.stanzaId,
+      participant: ctx.participant || null
     },
-    participant: ctx.participant,
-    ctx
+    participant: ctx.participant || null,
+    ctx,
+    quotedMessage: ctx.quotedMessage
   };
 }
 
+// REAL admin check - no isBotAdmin param needed
+async function checkBotAdmin(sock, from) {
+  try {
+    const meta = await sock.groupMetadata(from);
+    const me = sock.user?.id?.split(':')[0] + '@s.whatsapp.net';
+    const meLid = sock.user?.id;
+    const meEntry = meta.participants.find(p => {
+      const id = (p.id || '').split(':')[0];
+      return id === me.split('@')[0] || p.id === meLid || p.id === me;
+    });
+    return meEntry?.admin === 'admin' || meEntry?.admin === 'superadmin';
+  } catch (e) {
+    console.log('[CHECK ADMIN]', e.message);
+    return null; // unknown - let WhatsApp decide
+  }
+}
+
 module.exports = [
-  // ===== 1. REAL DELETE FOR EVERYONE - Reply + .gcstatus delete =====
+  // ===== 1. .gcstatus delete - Reply =====
   {
     command: ['gcstatus', 'gcstatusdelete', 'deletegcstatus', 'delgcstatus', 'dgcstatus'],
-    groupOnly: true,
-    adminOnly: true,
-    run: async ({ sock, m, from, reply, args, isBotAdmin }) => {
-      if (isBotAdmin === false) return reply('❌ Bot must be Group Admin to delete for everyone');
-      if ((args[0] || '').toLowerCase() !== 'delete' && (args[0] || '').toLowerCase() !== 'del') {
-        return reply('❌ Use: Reply to the status post + `.gcstatus delete`');
-      }
+    run: async ({ sock, m, from, reply, args, isGroup }) => {
+      if (!isGroup && !from.endsWith('@g.us')) return reply('❌ Only in groups');
+      const arg = (args[0] || '').toLowerCase();
+      if (arg !== 'delete' && arg !== 'del') return reply('❌ Use: Reply to status post + `.gcstatus delete`');
+
       const q = getQuoted(m);
-      if (!q) return reply('❌ Reply to the message first.\nExample: Reply to status post > type `.gcstatus delete`');
+      if (!q) {
+        // Show real debug so you fit see wetin WhatsApp send - no hiding
+        return reply('❌ No quoted message found.\nReply to the message again.\nIf na ViewOnce, open am first, then reply.');
+      }
+
+      // REAL admin check
+      const isAdmin = await checkBotAdmin(sock, from);
+      if (isAdmin === false) return reply('❌ Bot MUST be Group Admin to delete for everyone.\nMake bot admin, try again.');
 
       try {
-        // REAL Baileys delete for everyone
+        // REAL Baileys delete for everyone - this is the only way WhatsApp allow
+        // delete: { remoteJid, fromMe, id, participant }
         await sock.sendMessage(from, { delete: q.key });
         return reply('✅ Deleted for everyone');
       } catch (e) {
-        console.log('[GCSTATUS DELETE]', e.message);
-        return reply(`❌ Delete failed: ${e.message}\nCheck: Bot admin? Message < 2 days?`);
+        console.log('[GCSTATUS DELETE REAL ERROR]', e);
+        // Show REAL WhatsApp error, no generic
+        return reply(`❌ Delete failed: ${e.message}\nStanzaId: ${q.key.id}\nParticipant: ${q.key.participant || 'none'}\nCheck: Bot admin? Message < 2 days old?`);
       }
     }
   },
 
-  // ===== 2. REAL WARN - Delete + Warn - Reply + .gwarn =====
+  // ===== 2. .gwarn - Reply =====
   {
     command: ['gwarn', 'warn'],
-    groupOnly: true,
-    adminOnly: true,
-    run: async ({ sock, m, from, reply, isBotAdmin }) => {
-      if (isBotAdmin === false) return reply('❌ Bot must be Group Admin');
+    run: async ({ sock, m, from, reply }) => {
+      if (!from.endsWith('@g.us')) return reply('❌ Only in groups');
       const q = getQuoted(m);
-      if (!q?.participant) return reply('❌ Reply to him post + `.gwarn`');
+      if (!q?.participant) return reply('❌ Reply to him post + `.gwarn`\nIf participant missing, reply to text message, no be ViewOnce.');
+
+      const isAdmin = await checkBotAdmin(sock, from);
+      if (isAdmin === false) return reply('❌ Bot MUST be Group Admin');
+
       const targetJid = q.participant;
       const targetNum = targetJid.split('@')[0].split(':')[0];
 
@@ -81,32 +139,27 @@ module.exports = [
       const count = db[from][targetNum];
       saveDB(db);
 
-      try {
-        // Delete first - must wait, if delete fail we still warn
-        try { await sock.sendMessage(from, { delete: q.key }); } catch (e) { console.log('[GWARN DELETE]', e.message); }
+      // Delete first - REAL
+      try { await sock.sendMessage(from, { delete: q.key }); } catch (e) { console.log('[GWARN DELETE]', e.message); }
 
-        if (count >= 2) {
-          db[from][targetNum] = 0;
-          saveDB(db);
+      if (count >= 2) {
+        db[from][targetNum] = 0;
+        saveDB(db);
+        try {
           await sock.groupParticipantsUpdate(from, [targetJid], 'remove');
-          return sock.sendMessage(from, { text: `🚨 WARN 2/2 - @${targetNum} KICKED. Post deleted.`, mentions: [targetJid] });
-        }
-        return sock.sendMessage(from, { text: `⚠️ WARN ${count}/2 @${targetNum} - Post deleted. 1 more = Kick.`, mentions: [targetJid] });
-      } catch (e) {
-        console.log('[GWARN]', e.message);
-        return reply(`❌ Warn failed: ${e.message}\nBot admin?`);
+        } catch (e) { return reply(`❌ Kick failed: ${e.message} - Bot admin?`); }
+        return sock.sendMessage(from, { text: `🚨 WARN 2/2 - @${targetNum} KICKED. Post deleted.`, mentions: [targetJid] });
       }
+      return sock.sendMessage(from, { text: `⚠️ WARN ${count}/2 @${targetNum} - Post deleted. 1 more = Kick.`, mentions: [targetJid] });
     }
   },
 
-  // ===== 3. UNWARN =====
+  // ===== 3. .gunwarn =====
   {
-    command: ['gunwarn', 'gunwarn', 'unwarn'],
-    groupOnly: true,
-    adminOnly: true,
+    command: ['gunwarn', 'unwarn'],
     run: async ({ m, from, reply, args }) => {
       const q = getQuoted(m);
-      const ctx = m.message?.extendedTextMessage?.contextInfo;
+      const ctx = unwrap(m.message)?.extendedTextMessage?.contextInfo;
       let targetNum = q?.participant?.split('@')[0]?.split(':')[0]
         || ctx?.mentionedJid?.[0]?.split('@')[0]
         || (args[0] || '').replace(/[^0-9]/g, '');
@@ -119,11 +172,9 @@ module.exports = [
     }
   },
 
-  // ===== 4. WARNINGS =====
+  // ===== 4. .gwarnings =====
   {
     command: ['gwarnings', 'gwarns', 'warnings'],
-    groupOnly: true,
-    adminOnly: true,
     run: async ({ from, reply }) => {
       const db = loadDB();
       const all = db[from] || {};
