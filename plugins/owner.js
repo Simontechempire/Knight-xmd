@@ -1,23 +1,74 @@
-// KNIGHT XMD - Owner / Ping System - FULLY HANDLED - Connected to handler.js
+// KNIGHT XMD - Owner / Ping System - FANCY V2 - Connected to handler.js
 // By Faceless Tech
 const config = require('../config');
+const os = require('os');
 
 const clean = (jid) => (jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
-function box(title, lines) {
-  let t = `> ╭══〘 ${title} 〙══⊷❍\n> ┃✯╭──────────────\n`;
-  lines.forEach(l => t += `> ┃✯│ ${l}\n`);
-  t += `> ┃✯╰───────────────\n> ╰═══════════════════⊷❍`;
-  return t;
-}
+// ========== ✨ KNIGHT UI - FANCY DESIGN SYSTEM ==========
+const KnightUI = {
+  // Main fancy box
+  box(title, lines) {
+    let t = `╭─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━╮\n`;
+    t += `│  ✦  ${title.toUpperCase()}  ✦\n`;
+    t += `├─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━┤\n`;
+    lines.forEach(l => t += `│  ▸ ${l}\n`);
+    t += `╰─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━─━╯`;
+    return t;
+  },
+  // Premium card with footer
+  card(title, lines, footer = '⚔️ KNIGHT XMD • By Faceless Tech') {
+    let t = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+    t += `┃  ${title}\n`;
+    t += `┣━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+    lines.forEach(l => t += `┃  ${l}\n`);
+    t += `┣━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+    t += `┃  ${footer}\n`;
+    t += `┗━━━━━━━━━━━━━━━━━━━━━━┛`;
+    return t;
+  },
+  // Progress bar - fancy
+  bar(pct) {
+    const total = 10;
+    const filled = Math.round(pct / 10);
+    const empty = total - filled;
+    return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${pct}%`;
+  },
+  // Fancy bar with ▓
+  bar2(pct) {
+    const total = 12;
+    const filled = Math.round(pct / 100 * total);
+    return `[${'▓'.repeat(filled)}${'░'.repeat(total - filled)}] ${pct}%`;
+  },
+  header: (emoji, text) => `╭── ${emoji}  ${text}`,
+  line: () => `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`,
+  divider: `╰───────────────────────╯`,
+  ok: (t) => `✅  ${t}`,
+  err: (t) => `❌  ${t}`,
+  // Speed rank
+  speedRank: (ms) => ms < 150 ? '🚀 GOD SPEED' : ms < 300 ? '⚡ EXCELLENT' : ms < 600 ? '✅ GOOD' : ms < 1000 ? '⚠️ AVERAGE' : '🐢 SLOW',
+  // Uptime fancy
+  uptimeFancy: () => {
+    const s = Math.floor(process.uptime());
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    if (d > 0) return `${d}d ${h}h ${m}m ${sec}s`;
+    return `${h}h ${m}m ${sec}s`;
+  },
+  // Memory
+  mem: () => {
+    const used = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+    const total = (os.totalmem() / 1024 / 1024).toFixed(0);
+    return `${used}MB / ${total}MB`;
+  }
+};
+
+// Keep old name for compatibility
+function box(title, lines) { return KnightUI.box(title, lines); }
 
 function getTarget(m, args) {
   const ctx = m.message.extendedTextMessage?.contextInfo;
-  // 1. Mention
   if (ctx?.mentionedJid?.length) return ctx.mentionedJid[0];
-  // 2. Reply - use participant, not quoted participant alone (LID fix: use pn if dey)
   if (ctx?.participant) return ctx.participant;
-  // 3. Number arg
   if (args[0]) {
     const num = clean(args[0]);
     if (num.length >= 7) return num + '@s.whatsapp.net';
@@ -35,74 +86,121 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function save() { if (global.dbSave) global.dbSave(); }
 
 module.exports = [
-  // ========== PING - REAL SPEED, LIVE ANIMATED EDIT - NOBODY USE THIS ==========
-  // Method: Same message edits 5 times like live loading bar, real ping inside
+  // ========== PING - FANCY ANIMATED - V2 ==========
   {
     command: ['ping'],
     run: async ({ sock, from, m }) => {
       const t0 = Date.now();
-      const sent = await sock.sendMessage(from, { text: '🏓 Pinging...' }, { quoted: m });
-
+      const sent = await sock.sendMessage(from, { text: `╭── 🏓  PING\n│  ▸ Initializing...\n╰── ${KnightUI.bar(0)}` }, { quoted: m });
       const edit = async (txt) => {
         try { await sock.sendMessage(from, { text: txt, edit: sent.key }); } catch {}
-        await new Promise(r => setTimeout(r, 350));
+        await sleep(350);
       };
-
-      // Live animated edits - same message, no new message
-      await edit('🏓 Pinging...\n`[░░░░░░░░░░] 0%`');
+      await edit(`╭── 🏓  PING\n│  ▸ Connecting to WhatsApp...\n╰── ${KnightUI.bar(40)}`);
       const s1 = Date.now();
-      await edit('🏓 Connecting to WhatsApp...\n`[████░░░░░░] 40%`');
-      await edit('🏓 Measuring round-trip...\n`[███████░░░] 70%`');
-      await edit('🏓 Calculating speed...\n`[█████████░] 90%`');
-
+      await edit(`╭── 🏓  PING\n│  ▸ Measuring round-trip...\n╰── ${KnightUI.bar(70)}`);
+      await edit(`╭── 🏓  PING\n│  ▸ Calculating speed...\n╰── ${KnightUI.bar(90)}`);
       const speed = Date.now() - t0;
       const editPing = Date.now() - s1;
-      const upSec = Math.floor(process.uptime());
-      const final = box('🏓 PING', [
+      const final = KnightUI.box('🏓 PING • KNIGHT XMD', [
         `⚡ Speed: ${speed}ms`,
         `✏️ Edit Speed: ${editPing}ms`,
         `🟢 Status: Online`,
-        `⏱️ Uptime: ${Math.floor(upSec / 3600)}h ${Math.floor((upSec % 3600) / 60)}m ${upSec % 60}s`,
-        speed < 200 ? '🚀 Excellent' : speed < 500 ? '✅ Good' : '⚠️ Slow',
+        `⏱️ Uptime: ${KnightUI.uptimeFancy()}`,
+        `💾 RAM: ${KnightUI.mem()}`,
+        `${KnightUI.speedRank(speed)}`,
       ]);
-
-      // Final edit - 100% + real result
       try {
-        await sock.sendMessage(from, { text: final + `\n` + '`[██████████] 100% ✅`', edit: sent.key });
-      } catch {
-        await sock.sendMessage(from, { text: final }, { quoted: m });
-      }
+        await sock.sendMessage(from, { text: final + `\n${KnightUI.bar(100)} ✅` , edit: sent.key });
+      } catch { await sock.sendMessage(from, { text: final }, { quoted: m }); }
     }
   },
-  // ========== ALIVE ==========
+
+  // ========== NEW: SPEED - REAL SPEED TEST ==========
+  {
+    command: ['speed', 'speedtest'],
+    run: async ({ reply }) => {
+      const t0 = Date.now();
+      await reply('⚡ Testing speed...');
+      const arr = Array.from({length: 50000}, (_, i) => i * 2);
+      arr.sort((a,b) => b - a);
+      const cpu = Date.now() - t0;
+      const ping = Date.now() - t0;
+      await reply(KnightUI.card('⚡ SPEED TEST', [
+        `🏓 Ping: ${ping}ms`,
+        `🧠 CPU Test: ${cpu}ms`,
+        `💾 RAM: ${KnightUI.mem()}`,
+        `📊 Rank: ${KnightUI.speedRank(ping)}`,
+        `🖥️ Platform: ${os.platform()} ${os.arch()}`,
+      ]));
+    }
+  },
+
+  // ========== NEW: STATUS - SYSTEM HEALTH ==========
+  {
+    command: ['status', 'health'],
+    run: async ({ reply, sock, botNumber }) => {
+      const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+      const memPct = Math.round((process.memoryUsage().heapUsed / os.totalmem()) * 100);
+      await reply(KnightUI.card('💎 KNIGHT XMD • STATUS', [
+        `🟢 Bot: Online`,
+        `🤖 Number: +${botNumber || 'Unknown'}`,
+        `⏱️ Uptime: ${KnightUI.uptimeFancy()}`,
+        `👥 Groups: ${Object.keys(groups).length}`,
+        `💾 RAM: ${KnightUI.mem()} ${KnightUI.bar2(memPct)}`,
+        `🖥️ CPU: ${os.cpus()[0]?.model?.split(' ')[0] || 'Unknown'}`,
+        `⚡ Mode: ${config.mode?.toUpperCase()}`,
+        `🔋 Health: ${memPct < 80 ? '✅ Excellent' : '⚠️ High Usage'}`,
+      ]));
+    }
+  },
+
+  // ========== NEW: SYSINFO ==========
+  {
+    command: ['sysinfo', 'system'],
+    run: async ({ reply }) => {
+      await reply(KnightUI.box('🖥️ SYSTEM INFO', [
+        `OS: ${os.type()} ${os.release()}`,
+        `Arch: ${os.arch()}`,
+        `CPU: ${os.cpus().length} Cores`,
+        `Total RAM: ${(os.totalmem()/1024/1024/1024).toFixed(2)} GB`,
+        `Free RAM: ${(os.freemem()/1024/1024/1024).toFixed(2)} GB`,
+        `Node: ${process.version}`,
+        `Uptime: ${KnightUI.uptimeFancy()}`,
+        `Host: ${os.hostname()}`,
+      ]));
+    }
+  },
+
+  // ========== ALIVE - FANCY V2 ==========
   {
     command: ['alive'],
     run: async ({ reply, runtime, botNumber }) => {
-      const up = runtime ? runtime(Date.now() - global.botStart) : 'Unknown';
-      await reply(box('💎 ALIVE', [
+      const up = runtime ? runtime(Date.now() - global.botStart) : KnightUI.uptimeFancy();
+      await reply(KnightUI.card('💎 ALIVE • KNIGHT XMD', [
         '⚔️ Knight XMD is Alive',
         `👑 Creator: ${config.creatorName}`,
         `🤖 Bot Number: +${botNumber || 'Unknown'}`,
         `⏱️ Uptime: ${up}`,
         `⚡ Prefix: ${config.prefix}`,
+        `💾 RAM: ${KnightUI.mem()}`,
         '✅ All Systems Working',
       ]));
     }
   },
 
-  // ========== OWNER - REAL vCard ==========
+  // ========== OWNER - REAL vCard - FANCY ==========
   {
     command: ['owner', 'creator'],
     run: async ({ reply, sock, from }) => {
       const creatorNum = clean(config.creatorNumber);
-      const text = box('👑 CREATOR', [
+      const text = KnightUI.box('👑 CREATOR', [
         `👤 Name: ${config.creatorName}`,
         `📞 Number: +${creatorNum}`,
         '💬 Contact if bot has error',
         `🔗 wa.me/${creatorNum}`,
       ]);
       await reply(text);
-      // Real vCard - send contact card
       try {
         const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${config.creatorName}\nORG:Knight XMD\nTEL;type=CELL;type=VOICE;waid=${creatorNum}:+${creatorNum}\nEND:VCARD`;
         await sock.sendMessage(from, { contacts: { displayName: config.creatorName, contacts: [{ vcard }] } });
@@ -115,43 +213,44 @@ module.exports = [
     command: ['runtime', 'uptime'],
     run: async ({ reply, runtime }) => {
       const up = runtime ? runtime(Date.now() - global.botStart) : `${Math.floor((Date.now()-global.botStart)/1000)}s`;
-      await reply(box('⏱️ RUNTIME', [`Uptime: ${up}`, `Started: ${new Date(global.botStart).toLocaleString('en-NG')}`]));
+      await reply(KnightUI.box('⏱️ RUNTIME', [`Uptime: ${up}`, `Started: ${new Date(global.botStart).toLocaleString('en-NG')}`, `💾 RAM: ${KnightUI.mem()}`]));
     }
   },
 
-  // ========== BOTINFO - REAL DATA ==========
+  // ========== BOTINFO - FANCY V2 ==========
   {
     command: ['botinfo', 'info'],
     run: async ({ reply, sock, botNumber }) => {
       const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
-      await reply(box('🤖 BOT INFO', [
+      await reply(KnightUI.card('🤖 BOT INFO • KNIGHT XMD', [
         `Name: ${config.botName}`,
         `Bot Number: +${botNumber || 'Unknown'}`,
         `Creator: ${config.creatorName}`,
-        'Version: 1.0.0',
+        'Version: 2.0.0 • Fancy',
         `Mode: ${config.mode}`,
         `Prefix: ${config.prefix}`,
         `Language: ${config.language || 'en'}`,
         `Groups: ${Object.keys(groups).length}`,
-        `Uptime: ${Math.floor((Date.now()-global.botStart)/60000)} mins`,
+        `Uptime: ${KnightUI.uptimeFancy()}`,
+        `RAM: ${KnightUI.mem()}`,
         'Library: Baileys',
       ]));
     }
   },
 
-  // ========== MODE - MISSING BEFORE ==========
+  // ========== MODE ==========
   {
     command: ['mode'],
     ownerOnly: true,
-    run: async ({ reply, args, text }) => {
+    run: async ({ reply, args }) => {
       const v = (args[0] || '').toLowerCase();
-      if (!v) return reply(`Current Mode: ${config.mode}\nUsage: .mode public / private / self\n\n- public = everybody fit use\n- private = only owner/creator\n- self = only owner/creator (same as private)`);
+      if (!v) return reply(KnightUI.box('⚙️ MODE', [`Current: ${config.mode}`, `Usage: .mode public / private / self`, `- public = everybody fit use`, `- private = only owner/creator`, `- self = only owner/creator`]));
       if (!['public','private','self'].includes(v)) return reply('❌ Use: .mode public / private / self');
       config.mode = v;
       if (!global.db.settings) global.db.settings = {};
       global.db.settings.mode = v;
       save();
-      await reply(`✅ Mode changed to: ${v}`);
+      await reply(KnightUI.box('✅ MODE CHANGED', [`New Mode: ${v.toUpperCase()}`]));
     }
   },
   { command: ['public'], ownerOnly: true, run: async ({ reply }) => { config.mode = 'public'; if (!global.db.settings) global.db.settings = {}; global.db.settings.mode = 'public'; save(); await reply('✅ Bot is now PUBLIC - everybody fit use am'); } },
@@ -163,7 +262,7 @@ module.exports = [
     command: ['restart'],
     ownerOnly: true,
     run: async ({ reply }) => {
-      await reply('🔄 Restarting... wait 5 sec, bot go come back online');
+      await reply(KnightUI.box('🔄 RESTART', ['Restarting... wait 5 sec', 'Bot go come back online']));
       await sleep(1000);
       process.exit(0);
     }
@@ -174,13 +273,13 @@ module.exports = [
     command: ['shutdown', 'off'],
     ownerOnly: true,
     run: async ({ reply }) => {
-      await reply('🛑 Shutting down... Bye 👋');
+      await reply(KnightUI.box('🛑 SHUTDOWN', ['Shutting down... Bye 👋']));
       await sleep(1000);
       process.exit(0);
     }
   },
 
-  // ========== BROADCAST - FIXED, NO BAN ==========
+  // ========== BROADCAST - FANCY ==========
   {
     command: ['broadcast', 'bc'],
     ownerOnly: true,
@@ -199,12 +298,12 @@ module.exports = [
             await sleep(1500);
           } catch { fail++; }
         }
-        await reply(box('📢 BROADCAST DONE', [`✅ Sent: ${success}`, `❌ Failed: ${fail}`, `Total: ${ids.length}`]));
+        await reply(KnightUI.box('📢 BROADCAST DONE', [`✅ Sent: ${success}`, `❌ Failed: ${fail}`, `Total: ${ids.length}`]));
       } catch (e) { await reply('❌ Broadcast failed: ' + e.message); }
     }
   },
 
-  // ========== SET PREFIX - NOW SAVES TO DB ==========
+  // ========== SET PREFIX ==========
   {
     command: ['setprefix'],
     ownerOnly: true,
@@ -217,7 +316,7 @@ module.exports = [
       if (!global.db.settings) global.db.settings = {};
       global.db.settings.prefix = p;
       save();
-      await reply(box('✅ PREFIX CHANGED', [`New Prefix: ${p}`, `Example: ${p}menu`, 'Saved - go survive restart']));
+      await reply(KnightUI.box('✅ PREFIX CHANGED', [`New Prefix: ${p}`, `Example: ${p}menu`, 'Saved - go survive restart']));
     }
   },
 
@@ -245,7 +344,7 @@ module.exports = [
     }
   },
 
-  // ========== SET PP - FIXED ==========
+  // ========== SET PP ==========
   {
     command: ['setpp', 'setbotpp'],
     ownerOnly: true,
@@ -289,11 +388,11 @@ module.exports = [
     }
   },
 
-  // ========== BLOCK - PROTECT CREATOR + OWNER ==========
+  // ========== BLOCK ==========
   {
     command: ['block'],
     ownerOnly: true,
-    run: async ({ sock, m, args, reply, sender, isCreator, from }) => {
+    run: async ({ sock, m, args, reply, sender, from }) => {
       const target = getTarget(m, args);
       if (!target) return reply('Mention user, reply to them, or .block 234...');
       const targetNum = clean(target);
@@ -316,15 +415,14 @@ module.exports = [
     }
   },
 
-  // ========== BAN - LID FIX + PROTECT ==========
+  // ========== BAN ==========
   {
     command: ['ban'],
     ownerOnly: true,
-    run: async ({ reply, m, args, sender, isCreator, sock, from }) => {
+    run: async ({ reply, m, args, sender, sock, from }) => {
       const t = getTarget(m, args);
       if (!t) return reply('Mention user to ban');
       const num = clean(t);
-      // If target na LID (no be real number), use original JID part - still ban by that ID
       const banId = num.length < 10 ? clean(t) : num;
       if (banId === clean(config.creatorNumber)) return reply('❌ You cannot ban the Creator');
       if (banId === clean(sender)) return reply('❌ You cannot ban yourself');
@@ -332,7 +430,7 @@ module.exports = [
       if (banned.includes(banId)) return reply(`@${banId} already banned`);
       banned.push(banId);
       save();
-      await sock.sendMessage(from, { text: box('🚫 BANNED', [`@${banId} banned`, 'Bot will ignore them now']), mentions: [t] }, { quoted: m });
+      await sock.sendMessage(from, { text: KnightUI.box('🚫 BANNED', [`@${banId} banned`, 'Bot will ignore them now']), mentions: [t] }, { quoted: m });
     }
   },
 
@@ -346,19 +444,20 @@ module.exports = [
       const num = clean(t);
       global.db.banned = getBanned().filter(x => x !== num);
       save();
-      await sock.sendMessage(from, { text: box('✅ UNBANNED', [`@${num} unbanned`, 'They can use bot now']), mentions: [t] }, { quoted: m });
+      await sock.sendMessage(from, { text: KnightUI.box('✅ UNBANNED', [`@${num} unbanned`, 'They can use bot now']), mentions: [t] }, { quoted: m });
     }
   },
 
-  // ========== BANLIST ==========
+  // ========== BANLIST - FANCY ==========
   {
     command: ['banlist', 'banned'],
     ownerOnly: true,
     run: async ({ reply, sock, from, m }) => {
       const banned = getBanned();
-      if (!banned.length) return reply('✅ No banned users');
-      let t = `🚫 *BANNED LIST (${banned.length})*\n\n`;
-      banned.forEach((n, i) => t += `${i + 1}. @${n}\n`);
+      if (!banned.length) return reply(KnightUI.box('✅ BANLIST', ['No banned users', 'Everyone is free']));
+      let t = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🚫 BANNED LIST (${banned.length})\n┣━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+      banned.forEach((n, i) => t += `┃  ${i + 1}. @${n}\n`);
+      t += `┗━━━━━━━━━━━━━━━━━━━━━━┛`;
       await sock.sendMessage(from, { text: t, mentions: banned.map(n => n + '@s.whatsapp.net') }, { quoted: m });
     }
   },
