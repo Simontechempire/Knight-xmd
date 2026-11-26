@@ -101,10 +101,35 @@ app.get('/', (req, res) => {
   `);
 });
 
+// ========== FIX: AUTO-START SAVED BOTS ON PANEL RESTART - PANEL + DIRECT + 20 USERS ==========
+async function autoRestoreBots() {
+  try {
+    const sessionsDir = path.join(__dirname, 'sessions');
+    if (!await fs.pathExists(sessionsDir)) return;
+    const folders = await fs.readdir(sessionsDir);
+    for (const folder of folders) {
+      const clean = String(folder).replace(/[^0-9]/g, '');
+      if (!clean) continue;
+      const credsPath = path.join(sessionsDir, folder, 'creds.json');
+      if (!await fs.pathExists(credsPath)) continue;
+      console.log(`[RESTORE] Auto-starting saved bot: ${clean}`);
+      try {
+        await startBot(clean);
+      } catch (e) {
+        console.log(`[RESTORE] Failed ${clean}:`, e.message);
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) {
+    console.log('[RESTORE] Error:', e.message);
+  }
+}
+
 const PORT = process.env.PORT || config.port || 3000;
 app.listen(PORT, () => {
   console.log(`⚔️ Knight XMD Dashboard running on port ${PORT}`);
   console.log(`🌐 Open: http://localhost:${PORT}`);
+  setTimeout(() => autoRestoreBots(), 2000);
 });
 
 process.on('uncaughtException', (e) => console.log('[UNCAUGHT]', e.message, e.stack?.split('\n')[1] || ''));
