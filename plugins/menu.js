@@ -1,107 +1,228 @@
+
 const config = require('../config');
 
+const startedAt = Date.now();
+
+const categories = {
+  OWNER: [
+    'menu', 'help', 'ping', 'alive', 'owner',
+    'runtime', 'botinfo', 'restart', 'shutdown',
+    'broadcast', 'setprefix', 'setname', 'setbio',
+    'setpp', 'join', 'leave', 'block', 'unblock',
+    'ban', 'unban'
+  ],
+
+  AUTO: [
+    'autoread', 'autotyping', 'autoonline',
+    'autorecording', 'autoreact', 'autoreply',
+    'autosticker', 'autoview', 'autobio',
+    'autolikestatus'
+  ],
+
+  ANTI: [
+    'antilink', 'antibot', 'antispam', 'antiflood',
+    'antitag', 'antidelete', 'antibadword',
+    'antisticker', 'antifake', 'antipromote'
+  ],
+
+  MODERATOR: [
+    'kick', 'add', 'promote', 'demote', 'warn',
+    'warnings', 'resetwarn', 'mute', 'unmute', 'delete'
+  ],
+
+  GROUP: [
+    'groupinfo', 'grouplink', 'setname', 'setdesc',
+    'open', 'close', 'tagall', 'hidetag',
+    'listmembers', 'admins'
+  ],
+
+  VV: ['vv'],
+
+  DOWNLOADER: [
+    'play', 'song', 'video', 'tiktok',
+    'instagram', 'facebook', 'mediafire',
+    'apk', 'pinterest', 'github'
+  ],
+
+  TOOLS: [
+    'weather', 'translate', 'calculate', 'shorturl'
+  ],
+
+  SETTINGS: [
+    'prefix', 'public', 'private',
+    'setmode', 'language'
+  ],
+
+  STICKER: [
+    'sticker', 'toimg', 'take', 'attp', 'smeme'
+  ],
+
+  FUN: [
+    'joke', 'quote', 'meme', 'truth', 'dare'
+  ]
+};
+
+const uptime = () => {
+  const seconds = Math.floor((Date.now() - startedAt) / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  return `${days}d ${hours}h ${minutes}m ${secs}s`;
+};
+
+const totalCommands = Object.values(categories)
+  .reduce((total, commands) => total + commands.length, 0);
+
 module.exports = [
+
+  // MAIN MENU
   {
     command: ['menu', 'help'],
-    run: async ({ sock, from, m, prefix }) => {
 
-      const panel = (title, commands) => `
-> ╭══〘 ${title} 〙══⊷❍
-> ┃✯╭──────────────
-${commands.map(cmd => `> ┃✯│ ⌨️ ${prefix}${cmd}`).join('\n')}
-> ┃✯╰───────────────
-> ╰═══════════════════⊷❍`;
+    run: async ({ sock, from, m, prefix }) => {
+      const botName = config.BOT_NAME || 'KNIGHT XMD';
+      const developer = config.DEVELOPER || 'FACELESS TECH';
+      const version = config.VERSION || 'V1';
+      const mode = config.MODE || 'PUBLIC';
+      const menuPic = config.MENU_PIC ||
+        'https://files.catbox.moe/4nbm9j.jpg';
 
       const menu = `
-> ╭══〘 ⚔️ 𝗞𝗡𝗜𝗚𝗛𝗧 𝗫𝗠𝗗 ⚔️ 〙══⊷❍
-> ┃✯╭──────────────
-> ┃✯│ 👑 𝗗𝗘𝗩 : 𝗙𝗔𝗖𝗘𝗟𝗘𝗦𝗦 𝗧𝗘𝗖𝗛
-> ┃✯│ ⚡ 𝗣𝗥𝗘𝗙𝗜𝗫 : ${prefix}
-> ┃✯│ 🌐 𝗠𝗢𝗗𝗘 : 𝗣𝗨𝗕𝗟𝗜𝗖
-> ┃✯│ 🟢 𝗦𝗧𝗔𝗧𝗨𝗦 : 𝗢𝗡𝗟𝗜𝗡𝗘
-> ┃✯│ 🚀 𝗥𝗘𝗟𝗘𝗔𝗦𝗘 : 𝗩𝟭
-> ┃✯╰───────────────
-> ╰═══════════════════⊷❍
+╭══〘 ⚔️ ${botName} ⚔️ 〙══⊷❍
+┃✯╭──────────────
+┃✯│ 👑 BOT PANEL
+┃✯│
+┃✯│ 👑 Owner ➜ ${developer}
+┃✯│ ⏱️ Uptime ➜ ${uptime()}
+┃✯│ 🔧 Prefix ➜ [ ${prefix} ]
+┃✯│ 🌐 Mode ➜ ${mode}
+┃✯│ 📦 Cmds ➜ ${totalCommands}
+┃✯│ 🗂️ Cats ➜ ${Object.keys(categories).length}
+┃✯│ 🚀 Version ➜ ${version}
+┃✯╰───────────────
 
-${panel('👑 𝗢𝗪𝗡𝗘𝗥', [
-  '𝗺𝗲𝗻𝘂', '𝗵𝗲𝗹𝗽', '𝗽𝗶𝗻𝗴', '𝗮𝗹𝗶𝘃𝗲', '𝗼𝘄𝗻𝗲𝗿',
-  '𝗿𝘂𝗻𝘁𝗶𝗺𝗲', '𝗯𝗼𝘁𝗶𝗻𝗳𝗼', '𝗿𝗲𝘀𝘁𝗮𝗿𝘁',
-  '𝘀𝗵𝘂𝘁𝗱𝗼𝘄𝗻', '𝗯𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁', '𝘀𝗲𝘁𝗽𝗿𝗲𝗳𝗶𝘅',
-  '𝘀𝗲𝘁𝗻𝗮𝗺𝗲', '𝘀𝗲𝘁𝗯𝗶𝗼', '𝘀𝗲𝘁𝗽𝗽',
-  '𝗷𝗼𝗶𝗻', '𝗹𝗲𝗮𝘃𝗲', '𝗯𝗹𝗼𝗰𝗸', '𝘂𝗻𝗯𝗹𝗼𝗰𝗸',
-  '𝗯𝗮𝗻', '𝘂𝗻𝗯𝗮𝗻'
-])}
+╭══〘 🚀 QUICK START 〙══⊷❍
+┃✯╭──────────────
+┃✯│ ➜ ${prefix}menu
+┃✯│ ➜ ${prefix}menulist
+┃✯│ ➜ ${prefix}menucategory OWNER
+┃✯╰───────────────
 
-${panel('⚡ 𝗔𝗨𝗧𝗢', [
-  '𝗮𝘂𝘁𝗼𝗿𝗲𝗮𝗱', '𝗮𝘂𝘁𝗼𝘁𝘆𝗽𝗶𝗻𝗴',
-  '𝗮𝘂𝘁𝗼𝗼𝗻𝗹𝗶𝗻𝗲', '𝗮𝘂𝘁𝗼𝗿𝗲𝗰𝗼𝗿𝗱𝗶𝗻𝗴',
-  '𝗮𝘂𝘁𝗼𝗿𝗲𝗮𝗰𝘁', '𝗮𝘂𝘁𝗼𝗿𝗲𝗽𝗹𝘆',
-  '𝗮𝘂𝘁𝗼𝘀𝘁𝗶𝗰𝗸𝗲𝗿', '𝗮𝘂𝘁𝗼𝘃𝗶𝗲𝘄',
-  '𝗮𝘂𝘁𝗼𝗯𝗶𝗼', '𝗮𝘂𝘁𝗼𝗹𝗶𝗸𝗲𝘀𝘁𝗮𝘁𝘂𝘀'
-])}
-
-${panel('🛡️ 𝗔𝗡𝗧𝗜', [
-  '𝗮𝗻𝘁𝗶𝗹𝗶𝗻𝗸', '𝗮𝗻𝘁𝗶𝗯𝗼𝘁', '𝗮𝗻𝘁𝗶𝘀𝗽𝗮𝗺',
-  '𝗮𝗻𝘁𝗶𝗳𝗹𝗼𝗼𝗱', '𝗮𝗻𝘁𝗶𝘁𝗮𝗴', '𝗮𝗻𝘁𝗶𝗱𝗲𝗹𝗲𝘁𝗲',
-  '𝗮𝗻𝘁𝗶𝗯𝗮𝗱𝘄𝗼𝗿𝗱', '𝗮𝗻𝘁𝗶𝘀𝘁𝗶𝗰𝗸𝗲𝗿',
-  '𝗮𝗻𝘁𝗶𝗳𝗮𝗸𝗲', '𝗮𝗻𝘁𝗶𝗽𝗿𝗼𝗺𝗼𝘁𝗲'
-])}
-
-${panel('🔨 𝗠𝗢𝗗𝗘𝗥𝗔𝗧𝗢𝗥', [
-  '𝗸𝗶𝗰𝗸', '𝗮𝗱𝗱', '𝗽𝗿𝗼𝗺𝗼𝘁𝗲', '𝗱𝗲𝗺𝗼𝘁𝗲',
-  '𝘄𝗮𝗿𝗻', '𝘄𝗮𝗿𝗻𝗶𝗻𝗴𝘀', '𝗿𝗲𝘀𝗲𝘁𝘄𝗮𝗿𝗻',
-  '𝗺𝘂𝘁𝗲', '𝘂𝗻𝗺𝘂𝘁𝗲', '𝗱𝗲𝗹𝗲𝘁𝗲'
-])}
-
-${panel('👥 𝗚𝗥𝗢𝗨𝗣', [
-  '𝗴𝗿𝗼𝘂𝗽𝗶𝗻𝗳𝗼', '𝗴𝗿𝗼𝘂𝗽𝗹𝗶𝗻𝗸',
-  '𝘀𝗲𝘁𝗻𝗮𝗺𝗲', '𝘀𝗲𝘁𝗱𝗲𝘀𝗰', '𝗼𝗽𝗲𝗻',
-  '𝗰𝗹𝗼𝘀𝗲', '𝘁𝗮𝗴𝗮𝗹𝗹', '𝗵𝗶𝗱𝗲𝘁𝗮𝗴',
-  '𝗹𝗶𝘀𝘁𝗺𝗲𝗺𝗯𝗲𝗿𝘀', '𝗮𝗱𝗺𝗶𝗻𝘀'
-])}
-
-${panel('👁️ 𝗩𝗩', ['𝘃𝘃'])}
-
-${panel('📥 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥', [
-  '𝗽𝗹𝗮𝘆', '𝘀𝗼𝗻𝗴', '𝘃𝗶𝗱𝗲𝗼', '𝘁𝗶𝗸𝘁𝗼𝗸',
-  '𝗶𝗻𝘀𝘁𝗮𝗴𝗿𝗮𝗺', '𝗳𝗮𝗰𝗲𝗯𝗼𝗼𝗸',
-  '𝗺𝗲𝗱𝗶𝗮𝗳𝗶𝗿𝗲', '𝗮𝗽𝗸', '𝗽𝗶𝗻𝘁𝗲𝗿𝗲𝘀𝘁',
-  '𝗴𝗶𝘁𝗵𝘂𝗯'
-])}
-
-${panel('🔧 𝗧𝗢𝗢𝗟𝗦', [
-  '𝘄𝗲𝗮𝘁𝗵𝗲𝗿', '𝘁𝗿𝗮𝗻𝘀𝗹𝗮𝘁𝗲',
-  '𝗰𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗲', '𝘀𝗵𝗼𝗿𝘁𝘂𝗿𝗹'
-])}
-
-${panel('⚙️ 𝗦𝗘𝗧𝗧𝗜𝗡𝗚𝗦', [
-  '𝗽𝗿𝗲𝗳𝗶𝘅', '𝗽𝘂𝗯𝗹𝗶𝗰', '𝗽𝗿𝗶𝘃𝗮𝘁𝗲',
-  '𝘀𝗲𝘁𝗺𝗼𝗱𝗲', '𝗹𝗮𝗻𝗴𝘂𝗮𝗴𝗲'
-])}
-
-${panel('🎨 𝗦𝗧𝗜𝗖𝗞𝗘𝗥', [
-  '𝘀𝘁𝗶𝗰𝗸𝗲𝗿', '𝘁𝗼𝗶𝗺𝗴', '𝘁𝗮𝗸𝗲',
-  '𝗮𝘁𝘁𝗽', '𝘀𝗺𝗲𝗺𝗲'
-])}
-
-${panel('🎭 𝗙𝗨𝗡', [
-  '𝗷𝗼𝗸𝗲', '𝗾𝘂𝗼𝘁𝗲', '𝗺𝗲𝗺𝗲',
-  '𝘁𝗿𝘂𝘁𝗵', '𝗱𝗮𝗿𝗲'
-])}
-
-> ╭══〘⚔️𝗞𝗡𝗜𝗚𝗛𝗧 𝗫𝗠𝗗 ═⊷❍
-> ┃✯╭──────────────
-> ┃✯│ 𝗣𝗢𝗪𝗘𝗥 • 𝗟𝗢𝗬𝗔𝗟𝗧𝗬
-> ┃✯│ 𝗘𝗫𝗖𝗘𝗟𝗟𝗘𝗡𝗖𝗘
-> ┃✯╰───────────────
-> ╰═══════════════════⊷❍
+╭══〘 ⚔️ ${botName} 〙══⊷❍
+┃✯│ POWER • LOYALTY
+┃✯│ EXCELLENCE
+╰═══════════════════⊷❍
 `;
 
       await sock.sendMessage(from, {
-        image: { url: 'https://files.catbox.moe/4nbm9j.jpg' },
-        caption: menu
-      }, { quoted: m });
+        image: { url: menuPic },
+        caption: menu,
 
+        footer: `${botName} • ${developer}`,
+
+        templateButtons: [
+          {
+            index: 1,
+            urlButton: {
+              displayText: '📢 Channel',
+              url: config.CHANNEL_URL || 'https://whatsapp.com/'
+            }
+          },
+          {
+            index: 2,
+            quickReplyButton: {
+              displayText: '👑 Owner',
+              id: `${prefix}owner`
+            }
+          },
+          {
+            index: 3,
+            quickReplyButton: {
+              displayText: '📋 Open Menu',
+              id: `${prefix}menulist`
+            }
+          }
+        ]
+      }, { quoted: m });
+    }
+  },
+
+  // CATEGORY LIST
+  {
+    command: ['menulist'],
+
+    run: async ({ sock, from, m, prefix }) => {
+
+      const sections = [
+        {
+          title: '⚔️ KNIGHT XMD CATEGORIES',
+          rows: Object.keys(categories).map(category => ({
+            title: `📂 ${category}`,
+            description: `${categories[category].length} commands`,
+            rowId: `${prefix}menucategory ${category}`
+          }))
+        }
+      ];
+
+      await sock.sendMessage(from, {
+        text: 'Select a command category below.',
+        footer: 'KNIGHT XMD • FACELESS TECH',
+        title: '📋 OPEN MENU',
+        buttonText: 'SELECT CATEGORY',
+        sections
+      }, { quoted: m });
+    }
+  },
+
+  // CATEGORY COMMANDS
+  {
+    command: ['menucategory'],
+
+    run: async ({ sock, from, m, args, prefix }) => {
+
+      const category = (args || [])
+        .join(' ')
+        .trim()
+        .toUpperCase();
+
+      const commands = categories[category];
+
+      if (!commands) {
+        return sock.sendMessage(from, {
+          text: '❌ Category not found. Type .menulist'
+        }, { quoted: m });
+      }
+
+      const text = `
+╭══〘 ⚔️ ${category} 〙══⊷❍
+┃✯╭──────────────
+${commands.map(cmd => `┃✯│ ⌨️ ${prefix}${cmd}`).join('\n')}
+┃✯╰───────────────
+╰═══════════════════⊷❍
+
+👑 Developer: ${config.DEVELOPER || 'FACELESS TECH'}
+⚡ Bot: ${config.BOT_NAME || 'KNIGHT XMD'}
+
+Select another category from the menu.`;
+
+      await sock.sendMessage(from, {
+        text,
+        footer: 'KNIGHT XMD • POWER AND LOYALTY',
+        title: `${category} COMMANDS`,
+        buttonText: 'OPEN CATEGORIES',
+        sections: [
+          {
+            title: 'COMMAND CATEGORIES',
+            rows: Object.keys(categories).map(name => ({
+              title: `📂 ${name}`,
+              rowId: `${prefix}menucategory ${name}`
+            }))
+          }
+        ]
+      }, { quoted: m });
     }
   }
 ];
+    
