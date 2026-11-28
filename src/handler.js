@@ -11,8 +11,6 @@ if (!global.db.anti) global.db.anti = {};
 if (!global.botStart) global.botStart = Date.now();
 
 // ===== ✅ ADDED: PER-SESSION DB - Each bot get him own DB =====
-// Old: database.json for everybody -> David ban you, e ban for all
-// New: sessions/<number>/db.json -> David ban person, na only him bot
 function getSessionDBPath(botNum) {
   return path.join(__dirname, '..', 'sessions', String(botNum), 'db.json');
 }
@@ -222,22 +220,10 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
       }
     }
 
-        // ✅ FIXED: Run ALL auto plugins - anticorruption has all:true but NO groupOnly
-    // Old: if (p.all && p.groupOnly) -> anticorruption never ran
+    // ✅ FIXED: Run ALL auto plugins
     if (isGroup) {
       for (const p of plugins) {
         if (p.all) {
-          try {
-            await p.run({
-              sock, m: message, from, sender, senderNum,
-              sessionDB, db: sessionDB,
-              args: [], text: body, body,
-              reply: async (content) => sock.sendMessage(from, { text: String(content) }, { quoted: message })
-            });
-          } catch (e) { console.log('[AUTO PLUGIN]', e.message); }
-        }
-      }
-    }
           try {
             await p.run({
               sock, m: message, from, sender, senderNum,
@@ -371,10 +357,6 @@ function setupAntiDelete(sock) {
   });
 }
 
-// ✅ FIXED: REMOVED the bad top-level wlc lines wey dey crash start
-// Old: const wlc = require('./plugins/welcome.js'); wlc.attachEngine(sock);
-// That sock no exist + path wrong. Deleted.
-
 function setupParticipantUpdates(sock) {
   if (!sock?.ev || sock.__antiParticipantHandlerAttached) return;
   sock.__antiParticipantHandlerAttached = true;
@@ -391,7 +373,6 @@ function setupHandlers(sock) {
   setupAntiDelete(sock);
   setupParticipantUpdates(sock);
   try {
-    // ✅ FIXED: File na welcome.js, no be wlc.js
     const wlc = require('../plugins/welcome');
     if (wlc.attachEngine) wlc.attachEngine(sock);
   } catch {}
