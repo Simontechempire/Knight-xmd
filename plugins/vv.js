@@ -1,7 +1,7 @@
 // KNIGHT XMD - View Once Recovery - REAL
 // File: plugins/vv.js
-// .vv on / off = Auto-recover
-// .vv reply to VV = Recover that one
+// .vv on / off = Auto-recover to DM
+// .vv reply to VV = Recover in SAME CHAT (Group + DM)
 // Works: Image, Video, Voice Note (PTT), Audio, Document
 
 const fs = require('fs');
@@ -39,16 +39,12 @@ function isOwner(sock, m, from) {
   if (m?.key?.fromMe) return true;
   const ownerNum = cleanJid(getOwnerJid(sock));
   if (!ownerNum) return false;
-  // Sender must be EXACTLY owner number - not "any of 4 guesses"
   const sender = m?.key?.participant || m?.key?.participantPn || from;
   return cleanJid(sender) === ownerNum;
 }
 
-// REAL: Only return if it is ACTUALLY wrapped in ViewOnce - no deep recursion guessing
 function unwrapViewOnce(value) {
   if (!value || typeof value !== 'object') return null;
-
-  // viewOnceMessageV2 -> message -> image/video/audio
   if (value.viewOnceMessageV2?.message) {
     const inner = unwrapViewOnce(value.viewOnceMessageV2.message);
     if (inner) return inner;
@@ -65,28 +61,14 @@ function unwrapViewOnce(value) {
     const inner = unwrapViewOnce(value.documentWithCaptionMessage.message);
     if (inner) return inner;
   }
-
-  // FIX: Only accept if the container itself is viewOnce - check viewOnce flag
   for (const key of ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage']) {
     if (value[key]) {
-      // Must have viewOnce: true, otherwise it is a normal message, NOT VV
-      if (value[key].viewOnce !== true && value[key].viewOnceV2 !== true) {
-        // If we are already inside a viewOnce wrapper, allow it
-        // If we are at top level and no viewOnce flag, reject
-        // We know we are inside wrapper if caller passed inner message - handled by recursion above
-        // So at top level, if no flag, return null
-        // To keep it simple: check parent - if this call is from wrapper, value will have been unwrapped already
-        // Here we are at leaf, so require flag OR allow if called from wrapper
-        // We allow because wrapper recursion already confirmed it is VV
-        return { type: key.replace('Message', ''), media: value[key] };
-      }
       return { type: key.replace('Message', ''), media: value[key] };
     }
   }
   return null;
 }
 
-// FIX: Strict check - must be inside viewOnce wrapper
 function isViewOnceMessage(msg) {
   if (!msg) return false;
   return !!(msg.viewOnceMessage || msg.viewOnceMessageV2 || msg.viewOnceMessageV2Extension);
@@ -98,11 +80,8 @@ function getMediaType(result) {
   return result.type;
 }
 
-// REAL download - needs real message object with real key
 async function downloadMedia(sock, sourceMsg, mediaResult) {
   if (!mediaResult?.media) throw new Error('Media payload is unavailable');
-
-  // Method 1: Baileys helper - needs full message with key + message
   if (typeof sock?.downloadMediaMessage === 'function') {
     try {
       const downloaded = await sock.downloadMediaMessage(sourceMsg, 'buffer', {}, {
@@ -111,8 +90,6 @@ async function downloadMedia(sock, sourceMsg, mediaResult) {
       if (downloaded?.length > 10) return downloaded;
     } catch (e) { console.log('[VV] downloadMediaMessage failed, trying direct:', e.message); }
   }
-
-  // Method 2: Direct - needs media object + type
   const typeMap = { image: 'image', video: 'video', audio: 'audio', document: 'document' };
   const stream = await downloadContentFromMessage(mediaResult.media, typeMap[mediaResult.type] || mediaResult.type);
   const chunks = [];
@@ -133,7 +110,6 @@ async function sendMedia(sock, jid, kind, buffer, media, caption, quoted) {
   throw new Error(`Unsupported media type: ${kind}`);
 }
 
-// REAL reveal - sourceMsg must have REAL key
 async function reveal(sock, replyMsg, destination, sourceMsg) {
   const result = unwrapViewOnce(sourceMsg?.message);
   if (!result) throw new Error('No View Once media was found');
@@ -142,7 +118,16 @@ async function reveal(sock, replyMsg, destination, sourceMsg) {
   const sender = sourceMsg?.key?.participant || sourceMsg?.key?.participantPn || sourceMsg?.key?.remoteJid || 'unknown';
   const senderNumber = cleanJid(sender);
   const caption = `👁️ ${bold('VIEW ONCE RECOVERED')}\n\n👤 ${bold('From:')} @${senderNumber}\n📅 ${bold('Date:')} ${new Date().toLocaleString()}\n\n${bold('By Knight XMD')} ⚔️`;
-  await sendMedia(sock, destination, kind, buffer, result.media, caption, replyMsg);
+  // FIX: In group, mention the sender so it tags them
+  const options = replyMsg ? { quoted: replyMsg, mentions: senderNumber ? [`${senderNumber}@s.whatsapp.net`] : [] } : undefined;
+  // sendMedia with mentions - rebuild here because sendMedia does not pass mentions
+  const mimetype = result.media?.mimetype;
+  if (kind === 'image') await sock.sendMessage(destination, { image: buffer, caption, mimetype: mimetype || 'image/jpeg', mentions: options?.mentions }, options);
+  else if (kind === 'video') await sock.sendMessage(destination, { video: buffer, caption, mimetype: mimetype || 'video/mp4', mentions: options?.mentions }, options);
+  else if (kind === 'voice') await sock.sendMessage(destination, { audio: buffer, ptt: true, mimetype: mimetype || 'audio/ogg; codecs=opus' }, options);
+  else if (kind === 'audio') await sock.sendMessage(destination, { audio: buffer, ptt: false, mimetype: mimetype || 'audio/mp4' }, options);
+  else if (kind === 'document') await sock.sendMessage(destination, { document: buffer, fileName: result.media?.fileName || 'view-once-document', mimetype: mimetype || 'application/octet-stream', caption, mentions: options?.mentions }, options);
+  else throw new Error(`Unsupported media type: ${kind}`);
   return kind;
 }
 
@@ -157,19 +142,16 @@ function attachEngine(sock) {
 
       for (const message of messages) {
         if (!message?.message || message.key?.fromMe) continue;
-        // FIX: Only if toggle is ON - before it always ran
         const cfg = loadCfg();
         const ownerJid = getOwnerJid(sock);
         if (!ownerJid) continue;
-        // Toggle is per-owner, not per-group. One global toggle.
         if (cfg.global?.on !== true) continue;
-
         if (!isViewOnceMessage(message.message)) continue;
         const viewOnce = unwrapViewOnce(message.message);
         if (!viewOnce) continue;
-
+        // AUTO: Always to DM
         await reveal(sock, message, ownerJid, message);
-        console.log('[VV]', getMediaType(viewOnce), 'sent to owner:', ownerJid);
+        console.log('[VV AUTO]', getMediaType(viewOnce), 'sent to owner:', ownerJid);
       }
     } catch (error) {
       console.log('[VV] recovery failed:', error.message);
@@ -179,8 +161,6 @@ function attachEngine(sock) {
 
 const plugin = [
   {
-    // .vv on / off = Toggle auto-recover
-    // .vv (reply) = Recover that one
     command: ['vv', 'viewonce', 'reveal', 'openonce'],
     run: async ({ sock, m, from, reply, args, text }) => {
       if (!isOwner(sock, m, from)) {
@@ -189,7 +169,6 @@ const plugin = [
 
       const arg = (args?.[0] || '').toLowerCase();
 
-      // Toggle: .vv on / .vv off
       if (arg === 'on' || arg === 'off') {
         const cfg = loadCfg();
         cfg.global = { on: arg === 'on' };
@@ -203,10 +182,9 @@ const plugin = [
         if (arg === 'status') {
           return reply(`👁️ ${bold('View Once Auto-Recover:')} ${on ? bold('ON ✅') : bold('OFF ❌')}\n\n${bold('Usage:')} .vv ${bold('on / off')}\n${bold('Or reply to a View Once +')} .vv`);
         }
-        // If no arg and no quoted, show status, not error
         const context = m?.message?.extendedTextMessage?.contextInfo;
         if (!context?.quotedMessage) {
-          return reply(`👁️ ${bold('View Once Auto-Recover:')} ${on ? bold('ON ✅') : bold('OFF ❌')}\n\n${bold('Usage:')}\n• ${bold('Reply to a View Once +')} .vv\n• .vv ${bold('on')} ${bold('= Auto-recover all')}\n• .vv ${bold('off')} ${bold('= Stop auto-recover')}`);
+          return reply(`👁️ ${bold('View Once Auto-Recover:')} ${on ? bold('ON ✅') : bold('OFF ❌')}\n\n${bold('Usage:')}\n• ${bold('Reply to a View Once +')} .vv\n• .vv ${bold('on')} ${bold('= Auto-recover all to DM')}\n• .vv ${bold('off')} ${bold('= Stop auto-recover')}`);
         }
       }
 
@@ -223,28 +201,28 @@ const plugin = [
         return reply(`❌ ${bold('Reply to a View Once image, video, voice note, audio, or document with')} .vv`);
       }
 
-      // FIX: Build REAL quoted message with REAL key - not {...m, message: quoted}
+      // FIX: Build REAL quoted message with REAL key - for Group + DM
+      // In group, participant = who sent the VV. In DM, participant = from
       const quotedMsg = {
         key: {
           remoteJid: from,
           fromMe: false,
           id: context.stanzaId,
-          participant: context.participant || m.key?.participant || from
+          participant: context.participant || context.participantPn || m.key?.participant || from
         },
         message: quoted,
         messageContextInfo: m.messageContextInfo
       };
 
-      // FIX: Check it is actually View Once, not normal media
       if (!isViewOnceMessage(quoted)) {
         return reply(`❌ ${bold('That message is not a View Once message. Reply to a real View Once message.')}`);
       }
 
       try {
-        const ownerJid = getOwnerJid(sock);
-        if (!ownerJid) return reply(`❌ ${bold('Could not determine the paired bot owner.')}`);
-        const kind = await reveal(sock, m, ownerJid, quotedMsg);
-        await reply(`✅ ${bold('View Once')} ${kind === 'voice' ? bold('voice note') : bold(kind)} ${bold('sent to your DM.')}`);
+        // FIX: MANUAL = SAME CHAT - not DM
+        // from = group JID if in group, DM JID if in DM
+        const kind = await reveal(sock, m, from, quotedMsg);
+        await reply(`✅ ${bold('View Once')} ${kind === 'voice' ? bold('voice note') : bold(kind)} ${bold('recovered here.')}`);
       } catch (error) {
         console.log('[VV MANUAL]', error);
         await reply(`❌ ${bold('Could not recover this View Once media:')} ${error.message}\n${bold('Tip:')} ${bold('The sender may have already deleted it, or it expired.')}`);
