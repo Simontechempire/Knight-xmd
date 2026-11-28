@@ -17,6 +17,7 @@ const anti = require('../plugins/anti.js');
 const gcStatus = require('../plugins/gcstatusdelete.js');
 // FIX VV: Added - View Once Recovery
 const vv = require('../plugins/vv.js');
+const auto = require('../plugins/auto.js');
 
 const activeSockets = {};
 const sessionsDir = path.join(__dirname, '..', 'sessions');
