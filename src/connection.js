@@ -13,7 +13,8 @@ const path = require('path');
 const config = require('../config');
 const { handleMessage } = require('./handler');
 const anti = require('../plugins/anti.js');
-const gcStatus = require('../plugins/antigcstatusmention.js');
+// FIX 1: Correct file - was antigcstatusmention.js (old, never deleted)
+const gcStatus = require('../plugins/gcstatusdelete.js');
 
 const activeSockets = {};
 const sessionsDir = path.join(__dirname, '..', 'sessions');
@@ -170,6 +171,21 @@ async function startBot(number) {
           }
         }
       }
+
+      // ===== FIX 2: GCSTATUS INSTANT DELETE - FIRST, BEFORE ANTI, BEFORE HANDLER =====
+      // If this fails, it will NOT crash - try/catch inside, bot continues
+      for (const m of up.messages) {
+        try {
+          if (!m?.message) continue;
+          const from = m.key.remoteJid;
+          if (!from?.endsWith('@g.us')) continue;
+          const blocked = await gcStatus.handleGroupStatus(sock, m, from);
+          if (blocked) {
+            up.messages = up.messages.filter(x => x.key.id !== m.key.id);
+          }
+        } catch (e) { console.log('[GCSTATUS UPSERT]', e.message); }
+      }
+
       // ANTI: Run for every message in group, before commands
       for (const m of up.messages) {
         try {
