@@ -1,153 +1,201 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>⚔️ KNIGHT XMD — TERMINAL // HACKING SYSTEM</title>
+<title>⚔️ KNIGHT XMD — MATRIX DASHBOARD</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Unbounded:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--green:#00FF41;--green2:#00FF88;--red:#FF2D55;--cyan:#00E5FF;--pink:#FF2D95}
-body{background:#000;color:var(--green);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
-/* MATRIX BG */
-#matrix{position:fixed;inset:0;z-index:0;opacity:.35}
-.scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.25) 2px 3px)}
-.scanline{position:fixed;left:0;right:0;height:90px;z-index:3;pointer-events:none;background:linear-gradient(transparent,rgba(0,255,65,.12),transparent);animation:scan 4s linear infinite}
-@keyframes scan{0%{top:-10%}100%{top:110%}}
-.wrap{position:relative;z-index:4;max-width:480px;margin:0 auto;padding:18px 14px 40px}
-.top{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--green);padding:8px 12px;background:rgba(0,20,10,.85);box-shadow:0 0 20px rgba(0,255,65,.4)}
-.top b{letter-spacing:2px;font-size:12px}
-.live{color:var(--green2);font-size:12px}
-.live i{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;box-shadow:0 0 10px var(--green);animation:blink 1s infinite}
+:root{--g:#00FF41;--g2:#00FF88;--g3:#00CC33;--dark:#001A08}
+body{background:#000;color:var(--g);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
+#matrix{position:fixed;inset:0;z-index:0;opacity:.85}
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.75) 100%)}
+.scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.18) 3px 4px)}
+.scanline{position:fixed;left:0;right:0;height:120px;z-index:3;pointer-events:none;background:linear-gradient(transparent,rgba(0,255,65,.15),transparent);animation:scan 3.5s linear infinite}
+@keyframes scan{0%{top:-15%}100%{top:110%}}
+.wrap{position:relative;z-index:4;max-width:520px;margin:0 auto;padding:16px 14px 40px}
+/* HEADER */
+.header{text-align:center;padding:14px 10px 10px;border:1px solid var(--g);background:rgba(0,20,8,.88);box-shadow:0 0 35px rgba(0,255,65,.45),inset 0 0 30px rgba(0,255,65,.08);border-radius:18px}
+.header .tag{display:inline-block;background:var(--g);color:#000;font-weight:bold;font-size:10px;letter-spacing:2px;padding:5px 10px;border-radius:999px}
+.header h1{font-family:'Unbounded',sans-serif;font-size:32px;line-height:1;color:#fff;margin:10px 0 2px;text-shadow:0 0 20px var(--g)}
+.header h1 span{color:var(--g)}
+.header p{font-size:11px;letter-spacing:2px;color:var(--g2)}
+.status-row{display:flex;gap:8px;margin-top:12px}
+.pill{flex:1;border:1px solid var(--g);border-radius:999px;padding:7px 4px;font-size:11px;background:rgba(0,0,0,.6)}
+.pill b{color:#fff}
+.dot{display:inline-block;width:8px;height:8px;background:var(--g);border-radius:50%;box-shadow:0 0 10px var(--g);animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.2}}
-/* ANIME BANNER */
-.anime{margin:14px 0;border:1px solid var(--green);position:relative;overflow:hidden;background:#000;height:170px}
-.anime img{width:100%;height:100%;object-fit:cover;opacity:.85;filter:contrast(1.1) saturate(1.3)}
-.anime::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.9))}
-.anime-text{position:absolute;bottom:10px;left:12px;z-index:2}
-.anime-text h1{font-family:'Unbounded',sans-serif;font-size:26px;line-height:.9;color:#fff;text-shadow:0 0 15px var(--green),2px 2px 0 #000}
-.anime-text h1 span{color:var(--green)}
-.anime-text p{font-size:11px;letter-spacing:2px;color:var(--cyan);margin-top:4px}
-.hack-tag{position:absolute;top:10px;right:10px;z-index:2;background:var(--red);color:#fff;font-size:10px;padding:4px 8px;letter-spacing:1px;animation:blink 1.2s infinite}
-/* TERMINAL */
-.term{border:1px solid var(--green);background:rgba(0,10,5,.92);box-shadow:0 0 30px rgba(0,255,65,.25);padding:0;overflow:hidden}
-.term-head{background:rgba(0,255,65,.12);border-bottom:1px solid var(--green);padding:8px 12px;display:flex;gap:6px;align-items:center;font-size:11px;letter-spacing:1px}
-.dot{width:10px;height:10px;border-radius:50%}
-.term-body{padding:14px}
-.log{font-size:12.5px;line-height:1.6;min-height:82px;white-space:pre-wrap;color:#A6FFC1}
-.log b{color:var(--green)}
-.log .err{color:var(--red)}
-.log .ok{color:var(--green2)}
-.log .warn{color:#FFD700}
-.cursor{display:inline-block;width:8px;height:14px;background:var(--green);vertical-align:-2px;animation:blink .8s infinite}
-label{font-size:11px;letter-spacing:2px;color:var(--cyan)}
-.input-box{display:flex;gap:8px;margin:8px 0 12px;border:1px solid var(--green);background:#000;padding:6px}
-.input-box span{color:var(--green);padding:8px 0 0 6px}
-.input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:inherit;font-size:18px;font-weight:bold;letter-spacing:1px}
-.paste{background:var(--green);color:#000;border:none;font-family:inherit;font-weight:bold;padding:8px 12px;cursor:pointer}
-.btn-main{width:100%;background:var(--green);color:#000;border:none;padding:15px;font-family:inherit;font-weight:bold;font-size:15px;letter-spacing:1px;cursor:pointer;box-shadow:0 0 25px rgba(0,255,65,.5)}
-.btn-main:hover{background:#fff;box-shadow:0 0 35px #fff}
+/* CARDS */
+.card{margin-top:14px;border:1px solid var(--g);border-radius:18px;background:rgba(0,15,6,.92);box-shadow:0 0 25px rgba(0,255,65,.25);overflow:hidden}
+.card-head{padding:12px 14px;background:rgba(0,255,65,.12);border-bottom:1px solid var(--g);display:flex;justify-content:space-between;align-items:center}
+.card-head b{font-size:12px;letter-spacing:1px}
+.card-head span{font-size:10px;border:1px solid var(--g);padding:3px 7px;border-radius:999px}
+.card-body{padding:14px}
+label{font-size:11px;letter-spacing:2px;color:var(--g2)}
+.input-box{display:flex;gap:8px;margin:8px 0 12px;border:1px solid var(--g);background:#000;border-radius:12px;padding:6px}
+.input-box span{padding:9px 0 0 8px;font-weight:bold}
+.input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:inherit;font-size:18px;font-weight:bold}
+.paste{background:var(--g);color:#000;border:none;font-weight:bold;padding:9px 12px;border-radius:9px;cursor:pointer}
+.btn-main{width:100%;background:var(--g);color:#000;border:none;padding:15px;border-radius:12px;font-family:inherit;font-weight:bold;font-size:15px;letter-spacing:1px;cursor:pointer;box-shadow:0 0 25px rgba(0,255,65,.6)}
+.btn-main:hover{background:#fff}
 .btn-main:disabled{opacity:.6}
-.progress{display:none;height:4px;background:#111;margin:10px 0;overflow:hidden}
+.progress{display:none;height:4px;background:#111;margin:10px 0;border-radius:999px;overflow:hidden}
 .progress.show{display:block}
-.progress i{display:block;height:100%;width:40%;background:var(--green);animation:load 1s infinite}
+.progress i{display:block;height:100%;width:40%;background:var(--g);animation:load 1s infinite}
 @keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
-.code-box{display:none;margin:14px 0;border:1px dashed var(--green);padding:14px;text-align:center;background:#000}
+.code-box{display:none;margin:14px 0;border:1px dashed var(--g);border-radius:14px;padding:14px;text-align:center;background:#000}
 .code-box.show{display:block}
-.code{font-family:'Unbounded',sans-serif;font-size:32px;letter-spacing:6px;color:#fff;text-shadow:0 0 20px var(--green);margin:6px 0}
-.code-actions{display:none;gap:8px;margin-top:10px}
-.code-actions.show{display:flex}
-.btn{flex:1;padding:11px;background:#111;color:var(--green);border:1px solid var(--green);font-family:inherit;font-weight:bold;cursor:pointer}
-.btn.gold{background:var(--green);color:#000}
-.status{font-size:12px;margin:10px 0;min-height:16px}
-.steps{border:1px solid rgba(0,255,65,.4);padding:12px;font-size:12px;line-height:1.7;color:#C8FFD8;margin-top:12px}
-.steps h3{color:var(--green);letter-spacing:1px;font-size:11px;margin-bottom:8px}
-.footer{display:flex;gap:8px;margin-top:12px}
-.bottom{text-align:center;font-size:11px;color:#666;margin-top:16px;line-height:1.7}
-.bottom b{color:#999}
-.glitch{position:relative}
-@media(max-width:480px){.code{font-size:26px}}
+.code{font-family:'Unbounded',sans-serif;font-size:32px;letter-spacing:6px;color:#fff;text-shadow:0 0 20px var(--g);margin:6px 0}
+.row{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;padding:11px;background:#000;color:var(--g);border:1px solid var(--g);border-radius:10px;font-family:inherit;font-weight:bold;cursor:pointer}
+.btn.fill{background:var(--g);color:#000}
+.log{font-size:12px;line-height:1.6;color:#B6FFC6;min-height:20px;white-space:pre-wrap}
+/* AI GPT */
+.ai-chat{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.msg-ai{background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.4);padding:9px 10px;border-radius:12px 12px 12px 2px;font-size:12.5px;line-height:1.5;color:#D8FFE0}
+.msg-user{background:#001A08;border:1px solid var(--g);padding:9px 10px;border-radius:12px 12px 2px 12px;font-size:12.5px;align-self:flex-end;color:#fff;max-width:85%}
+.ai-input{display:flex;gap:8px}
+.ai-input input{flex:1;background:#000;border:1px solid var(--g);border-radius:10px;padding:11px;color:#fff;font-family:inherit;outline:none}
+.ai-input button{background:var(--g);color:#000;border:none;border-radius:10px;padding:0 14px;font-weight:bold;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{border:1px solid var(--g);background:transparent;color:var(--g);font-family:inherit;font-size:11px;padding:6px 9px;border-radius:999px;cursor:pointer}
+/* LINKS */
+.link-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.link-card{display:block;text-decoration:none;border:1px solid var(--g);border-radius:14px;padding:14px 10px;text-align:center;background:#000;transition:.2s}
+.link-card:hover{background:var(--g);transform:translateY(-2px)}
+.link-card:hover b,.link-card:hover span,.link-card:hover small{color:#000}
+.link-card i{font-size:24px;display:block;margin-bottom:6px}
+.link-card b{color:#fff;font-size:13px;display:block}
+.link-card span{color:var(--g2);font-size:11px}
+.link-card small{color:#888;font-size:10px}
+.link-full{grid-column:1/-1}
+.footer{margin-top:14px;text-align:center;font-size:11px;color:#666;line-height:1.7}
+.footer b{color:#aaa}
 </style></head><body>
-<canvas id="matrix"></canvas>
-<div class="scan"></div><div class="scanline"></div>
+<canvas id="matrix"></canvas><div class="vignette"></div><div class="scan"></div><div class="scanline"></div>
 
 <div class="wrap">
-<div class="top"><b>⚔️ FACELESS_TECH // KNIGHT_XMD</b><div class="live"><i></i> <span id="liveText">CHECKING...</span></div></div>
 
-<!-- ANIME BANNER - Change image if you want -->
-<div class="anime">
-<img src="https://files.catbox.moe/4nbm9j.jpg" onerror="this.src='https://i.imgur.com/8Q9Z9.png'" alt="KNIGHT">
-<div class="hack-tag">⚠️ HACKING MODE: ON</div>
-<div class="anime-text"><h1>KNIGHT <span>XMD</span></h1><p>// TERMINAL v2.0 - ANIME SYSTEM - BY FACELESS TECH</p></div>
+<!-- HEADER -->
+<div class="header">
+<div class="tag">⚔️ FACELESS TECH • MATRIX SYSTEM</div>
+<h1>KNIGHT <span>XMD</span></h1>
+<p>// GREEN MATRIX • WHATSAPP BOT • v2.0</p>
+<div class="status-row">
+<div class="pill"><span class="dot"></span> <span id="liveText">CHECKING...</span></div>
+<div class="pill">⚡ PREFIX <b>.</b></div>
+<div class="pill">👥 <b id="statOnline">0</b> ONLINE</div>
+</div>
 </div>
 
-<div class="term">
-<div class="term-head"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span style="margin-left:8px">root@knight-xmd: ~/pairing -- zsh</span></div>
-<div class="term-body">
-<div class="log" id="log">> Initializing KNIGHT XMD system...
-> Loading hacking modules... <span class="ok">[OK]</span>
-> Anime core... <span class="ok">[ONLINE]</span>
-> Waiting for target number...
-> <span class="cursor"></span></div>
+<!-- 1. AI GPT -->
+<div class="card">
+<div class="card-head"><b>🤖 KNIGHT AI — ASK ME HOW TO PAIR</b><span>● ONLINE</span></div>
+<div class="card-body">
+<div class="ai-chat" id="aiChat">
+<div class="msg-ai">👋 Hello! I'm Knight AI. Ask me how to pair your bot.<br><br>Try: <b>"How to pair?"</b> or <b>"Code not working"</b></div>
+</div>
+<div class="ai-input"><input id="aiInput" placeholder="Ask: How to pair?..." onkeydown="if(event.key==='Enter')askAI()"><button onclick="askAI()">SEND →</button></div>
+<div class="chips">
+<button class="chip" onclick="quickAsk('How to pair?')">How to pair?</button>
+<button class="chip" onclick="quickAsk('Code not working')">Code not working</button>
+<button class="chip" onclick="quickAsk('What is Knight XMD?')">What is Knight?</button>
+<button class="chip" onclick="quickAsk('How to fork?')">How to fork?</button>
+</div>
+</div>
+</div>
 
-<label>> TARGET_WHATSAPP_NUMBER:</label>
-<div class="input-box"><span>+</span><input id="num" placeholder="2348071569915" inputmode="numeric" autocomplete="tel"><button class="paste" onclick="pasteNum()">PASTE</button></div>
-
+<!-- 2. PAIR -->
+<div class="card">
+<div class="card-head"><b>🔑 [02] GET PAIRING CODE</b><span>STEP 1</span></div>
+<div class="card-body">
+<div class="log" id="log">> System ready...<br>> Enter your WhatsApp number below</div>
+<label style="margin-top:10px;display:block">> WHATSAPP NUMBER</label>
+<div class="input-box"><span>+</span><input id="num" placeholder="2348071569915" inputmode="numeric"><button class="paste" onclick="pasteNum()">PASTE</button></div>
 <div class="progress" id="progress"><i></i></div>
-<button id="pairBtn" class="btn-main" onclick="pair()">[ ▶ ] HACK / GET PAIRING CODE</button>
-
-<div class="code-box" id="codeBox"><small style="letter-spacing:3px;color:var(--green)">✦ ACCESS CODE ✦</small><div class="code" id="code">---- ----</div><div id="codeTimer" style="font-size:11px;color:#aaa">Expires in 60 seconds • Enter fast</div></div>
-<div class="code-actions" id="codeActions"><button class="btn gold" onclick="copyCode()">📋 COPY CODE</button><button class="btn" onclick="pair()">🔄 NEW CODE</button></div>
-
-<div class="status" id="msg">> Enter number with country code, no +</div>
-
-<div class="steps"><h3>>> MISSION BRIEFING:</h3>
-[01] Click HACK / GET PAIRING CODE<br>
-[02] Copy 8-digit code<br>
-[03] WhatsApp > Linked Devices > Link with phone number<br>
-[04] Paste code. Bot goes ONLINE ✅<br>
-[05] Send <b>.ping</b> then <b>.menu</b> to test</div>
-
-<div class="footer"><button class="btn" onclick="checkStatus()">🔍 CHECK STATUS</button><button class="btn" onclick="logout()">🚪 LOGOUT</button></div>
+<button id="pairBtn" class="btn-main" onclick="pair()">⚔️ GET PAIRING CODE →</button>
+<div class="code-box" id="codeBox"><small style="letter-spacing:3px">✦ YOUR PAIRING CODE ✦</small><div class="code" id="code">---- ----</div><div id="codeTimer" style="font-size:11px;color:#aaa">Expires in 60 seconds</div></div>
+<div class="row" id="codeActions" style="display:none"><button class="btn fill" onclick="copyCode()">📋 COPY CODE</button><button class="btn" onclick="pair()">🔄 NEW CODE</button></div>
+<div class="row"><button class="btn" onclick="checkStatus()">🔍 CHECK STATUS</button><button class="btn" onclick="logout()">🚪 LOGOUT</button></div>
+<div style="margin-top:12px;font-size:12px;line-height:1.7;color:#C8FFD8;border-top:1px dashed rgba(0,255,65,.4);padding-top:10px">
+<b style="color:var(--g)">HOW TO PAIR IN 30s:</b><br>
+1. Click GET PAIRING CODE<br>
+2. Copy 8-digit code<br>
+3. WhatsApp → Linked Devices → Link with phone number<br>
+4. Paste code → Bot ONLINE ✅ → Send <b>.ping</b> then <b>.menu</b>
+</div>
 </div>
 </div>
 
-<p class="bottom"><b>KNIGHT XMD v2.0</b> • Prefix <b>.</b> • Mode <b>Public</b><br>FACELESS TECH • UYO, NIGERIA • <span style="color:var(--green)">SYSTEM: ANIME HACKING</span></p>
+<!-- 3,4,5 LINKS -->
+<div class="card">
+<div class="card-head"><b>🌐 CONNECT & DEPLOY</b><span>OFFICIAL</span></div>
+<div class="card-body">
+<div class="link-grid">
+<a class="link-card" href="https://wa.me/2348071569915?text=Hello%20how%20can%20I%20get%20more%20information%20about%20knight%20xmd%20bot" target="_blank"><i>💬</i><b>Contact Owner</b><span>WhatsApp Business</span><br><small>2348071569915 • Tap to chat</small></a>
+<a class="link-card" href="https://t.me/mr_faceless_tech" target="_blank"><i>✈️</i><b>Telegram</b><span>@mr_faceless_tech</span><br><small>t.me/mr_faceless_tech</small></a>
+<a class="link-card link-full" href="https://github.com/Simontechempire/Knight-xmd/fork" target="_blank"><i>🍴</i><b>FORK REPO ON GITHUB</b><span>Simontechempire / Knight-xmd</span><br><small>Fork → Deploy your own bot → Pair</small></a>
+</div>
+</div>
+</div>
+
+<p class="footer"><b>KNIGHT XMD v2.0</b> • Made with 💚 by <b>Faceless Tech</b> • Uyo, Nigeria<br>Prefix <b>.</b> • Mode <b>Public</b> • Matrix System: <span style="color:var(--g)">ACTIVE</span></p>
+
 </div>
 
 <script>
-// MATRIX RAIN
+// MATRIX - MOST VISIBLE, ALL GREEN
 const c=document.getElementById('matrix'),ctx=c.getContext('2d');
 let W,H,cols,drops;
-function resize(){W=c.width=innerWidth;H=c.height=innerHeight;cols=Math.floor(W/16);drops=Array(cols).fill(1)}
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight;cols=Math.floor(W/14);drops=Array(cols).fill(1)}
 resize();addEventListener('resize',resize);
-const chars='KNIGHTXMD01アイウエオカキクケコサシスセソ0123456789$#@';
-setInterval(()=>{ctx.fillStyle='rgba(0,0,0,0.08)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#00FF41';ctx.font='14px monospace';for(let i=0;i<cols;i++){const t=chars[Math.floor(Math.random()*chars.length)];ctx.fillText(t,i*16,drops[i]*16);if(drops[i]*16>H&&Math.random()>.975)drops[i]=0;drops[i]++}},33);
+const chars='KNIGHTXMD01アイウエオカキクケコサシスセソ0123456789$#@<>/*';
+setInterval(()=>{ctx.fillStyle='rgba(0,0,0,0.06)';ctx.fillRect(0,0,W,H);ctx.font='15px monospace';for(let i=0;i<cols;i++){const t=chars[Math.floor(Math.random()*chars.length)];ctx.fillStyle=Math.random()>.97?'#FFFFFF':'#00FF41';ctx.fillText(t,i*14,drops[i]*14);if(drops[i]*14>H&&Math.random()>.975)drops[i]=0;drops[i]++}},30);
 
+// AI GPT - SMALL, OFFLINE, ANSWERS PAIRING
+function quickAsk(q){document.getElementById('aiInput').value=q;askAI();}
+function askAI(){
+  const inp=document.getElementById('aiInput');const q=inp.value.trim();if(!q)return;
+  const chat=document.getElementById('aiChat');
+  chat.innerHTML+=`<div class="msg-user">${q}</div>`;inp.value='';
+  const l=q.toLowerCase();let a='';
+  if(l.includes('pair')||l.includes('code')||l.includes('link')||l.includes('connect'))a=`✅ <b>HOW TO PAIR:</b><br>1. Type your number above (e.g. 2348071569915)<br>2. Click GET PAIRING CODE<br>3. Copy code<br>4. WhatsApp → Linked Devices → Link with phone number → Paste code<br>5. Send <b>.ping</b> to test!`;
+  else if(l.includes('not work')||l.includes('fail')||l.includes('expir')||l.includes('error'))a=`⚠️ <b>CODE NOT WORKING?</b><br>• Code expires in 60s - click NEW CODE<br>• Use number WITHOUT + (234... not +234)<br>• Check internet, try again<br>• If bot already paired, click CHECK STATUS`;
+  else if(l.includes('fork')||l.includes('deploy')||l.includes('github'))a=`🍴 <b>HOW TO FORK:</b><br>1. Click FORK REPO below<br>2. Fork to your GitHub<br>3. Deploy on Render<br>4. Come back here to pair!`;
+  else if(l.includes('what')||l.includes('knight')||l.includes('bot'))a=`⚔️ <b>KNIGHT XMD</b> is a powerful WhatsApp bot by Faceless Tech. It has auto-reply, anti-link, stickers, music, AI, games & more. Prefix is <b>.</b> Try <b>.menu</b> after pairing.`;
+  else if(l.includes('owner')||l.includes('contact')||l.includes('help')||l.includes('support'))a=`💬 <b>CONTACT OWNER:</b><br>WhatsApp: Click Contact Owner below<br>Telegram: @mr_faceless_tech<br>Send "Hello, I need help with Knight XMD"`;
+  else if(l.includes('hi')||l.includes('hello')||l.includes('hey'))a=`👋 Hello! I'm Knight AI. Ask me <b>"How to pair?"</b> - I go guide you step by step.`;
+  else a=`🤖 I understand pairing, fork, contact & Knight XMD.<br>Try asking: <b>"How to pair?"</b> or <b>"Code not working"</b>`;
+  setTimeout(()=>{chat.innerHTML+=`<div class="msg-ai">${a}</div>`;chat.scrollTop=chat.scrollHeight;},400);
+  chat.scrollTop=chat.scrollHeight;
+}
+
+// PAIR LOGIC - SAME API
 let currentCode='',statusTimer=null,countdownTimer=null,secs=60;
-function log(t,cls=''){const el=document.getElementById('log');el.innerHTML+=`\n> ${t}`;el.scrollTop=el.scrollHeight;document.getElementById('msg').innerHTML=t;}
+function log(t){document.getElementById('log').innerHTML+='<br>> '+t;}
 async function pasteNum(){try{const t=await navigator.clipboard.readText();if(t)document.getElementById('num').value=t.replace(/[^0-9]/g,'');}catch{document.getElementById('num').focus();}}
 async function pair(){
   const btn=document.getElementById('pairBtn');
   const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');
-  if(!number)return log('❌ Enter number first','err');
-  if(number.length<7)return log('❌ Invalid number. e.g. 2348071569915','err');
-  btn.disabled=true;btn.innerText='⏳ HACKING... WAIT 5 SEC';
+  if(!number)return log('❌ Enter number first');
+  if(number.length<7)return log('❌ Invalid number. e.g. 2348071569915');
+  btn.disabled=true;btn.innerText='⏳ GENERATING... WAIT 5 SEC';
   document.getElementById('progress').classList.add('show');
   document.getElementById('codeBox').classList.remove('show');
-  document.getElementById('codeActions').classList.remove('show');
-  log('⏳ Generating royal code... do not click again');
+  document.getElementById('codeActions').style.display='none';
+  log('⏳ Generating your code... no click again');
   try{
     const r=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
     const d=await r.json();
-    if(d.code){currentCode=d.code;document.getElementById('code').innerText=d.code;document.getElementById('codeBox').classList.add('show');document.getElementById('codeActions').classList.add('show');log('✅ CODE GENERATED: '+d.code);log('⏳ Waiting for WhatsApp...');startCountdown();startStatusPolling(number);}
+    if(d.code){currentCode=d.code;document.getElementById('code').innerText=d.code;document.getElementById('codeBox').classList.add('show');document.getElementById('codeActions').style.display='flex';log('✅ CODE: '+d.code);log('⏳ Waiting for WhatsApp...');startCountdown();startStatusPolling(number);}
     else if(d.alreadyConnected)log('✅ Bot already connected! Send .ping');
     else log('❌ '+(d.message||'Failed, try again'));
   }catch{log('❌ Network error, check server');}
-  btn.disabled=false;btn.innerText='[ ▶ ] HACK / GET PAIRING CODE';
+  btn.disabled=false;btn.innerText='⚔️ GET PAIRING CODE →';
   document.getElementById('progress').classList.remove('show');
 }
 function startCountdown(){secs=60;clearInterval(countdownTimer);countdownTimer=setInterval(()=>{secs--;document.getElementById('codeTimer').innerText=`Expires in ${secs} seconds • Enter fast`;if(secs<=0){clearInterval(countdownTimer);document.getElementById('codeTimer').innerText='⚠️ Code expired, click New Code';}},1000);}
 function copyCode(){if(!currentCode)return;navigator.clipboard.writeText(currentCode).then(()=>log('✅ Code copied! Paste in WhatsApp now')).catch(()=>prompt('Copy code:',currentCode));}
-async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();if(d.online>0){document.getElementById('liveText').innerText='LIVE • '+d.online+' ONLINE';log(`✅ Online: ${d.online} bot(s) — ${d.bots.join(', ')}`);}else{document.getElementById('liveText').innerText='OFFLINE';log('⚪ No bot online yet. Pair first.');}}catch{document.getElementById('liveText').innerText='OFFLINE';log('❌ Cannot reach server');}}
-function startStatusPolling(number){if(statusTimer)clearInterval(statusTimer);let tries=0;statusTimer=setInterval(async()=>{tries++;if(tries>24){clearInterval(statusTimer);return;}try{const r=await fetch('/api/status');const d=await r.json();if(d.bots&&d.bots.includes(number)){log('✅ CONNECTED! Bot is now ONLINE. Send .ping');document.getElementById('codeTimer').innerText='✅ Connected! You can close this page.';clearInterval(statusTimer);clearInterval(countdownTimer);checkStatus();}}catch{}},5000);}
+async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();document.getElementById('statOnline').innerText=d.online||0;if(d.online>0){document.getElementById('liveText').innerText='LIVE • '+d.online+' ONLINE';log(`✅ Online: ${d.online} bot(s)`);}else{document.getElementById('liveText').innerText='OFFLINE';log('⚪ No bot online yet. Pair first.');}}catch{document.getElementById('liveText').innerText='OFFLINE';log('❌ Cannot reach server');}}
+function startStatusPolling(number){if(statusTimer)clearInterval(statusTimer);let tries=0;statusTimer=setInterval(async()=>{tries++;if(tries>24){clearInterval(statusTimer);return;}try{const r=await fetch('/api/status');const d=await r.json();if(d.bots&&d.bots.includes(number)){log('✅ CONNECTED! Bot is ONLINE. Send .ping');document.getElementById('codeTimer').innerText='✅ Connected! You can close this page.';clearInterval(statusTimer);clearInterval(countdownTimer);checkStatus();}}catch{}},5000);}
 async function logout(){const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');if(!number)return log('Enter number first');if(!confirm('Logout this number?'))return;try{const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});const d=await r.json();log(d.message);}catch{log('Logout failed');}}
 checkStatus();
 </script></body></html>
