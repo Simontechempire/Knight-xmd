@@ -1,4 +1,4 @@
-// KNIGHT XMD - Connection - Fixed with SIMON MD Engine
+// KNIGHT XMD - Connection - Fixed with SIMON MD Engine + ANTI WIRED
 const { 
   default: makeWASocket, 
   useMultiFileAuthState, 
@@ -12,6 +12,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 const { handleMessage } = require('./handler');
+const anti = require('../plugins/anti.js');
 
 const activeSockets = {};
 const sessionsDir = path.join(__dirname, '..', 'sessions');
@@ -72,8 +73,6 @@ async function startBot(number) {
   const clean = String(number).replace(/[^0-9]/g, '');
   const lock = getLock(clean);
 
-  // FIX - RENDER REPLY FIX: Never return fake "Already Connected"
-  // If socket has no user, it never connected. Delete it and make fresh one.
   if (activeSockets[clean]) {
     const old = activeSockets[clean];
     if (old.user) {
@@ -137,7 +136,6 @@ async function startBot(number) {
     }
     if (connection === 'close') {
       delete activeSockets[clean];
-      // FIX - Clear lock on close so next code is fresh, not dead code
       lock.lastCode = null;
       lock.lastTime = 0;
       lock.inProgress = false;
@@ -154,6 +152,7 @@ async function startBot(number) {
     }
   });
 
+  // ===== ANTI - FIXED: Cache + Check BEFORE handler =====
   sock.ev.on('messages.upsert', async (up) => {
     try {
       const liveSettings = loadSessionSettings(clean);
@@ -170,18 +169,42 @@ async function startBot(number) {
           }
         }
       }
-      await handleMessage(sock, up, clean, liveSettings);
+      // ANTI: Run for every message in group, before commands
+      for (const m of up.messages) {
+        try {
+          if (!m.message) continue;
+          const from = m.key.remoteJid;
+          if (!from?.endsWith('@g.us')) continue;
+          const type = Object.keys(m.message)[0] || '';
+          const body = m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || m.message?.videoMessage?.caption || m.message?.documentMessage?.caption || '';
+          await anti.cacheMessage(sock, from, m, body, type);
+          const blocked = await anti.handleAnti(sock, m, { from, body, type });
+          if (blocked) {
+            // Remove this message from up.messages so handler does not process it
+            up.messages = up.messages.filter(x => x.key.id !== m.key.id);
+          }
+        } catch (e) { console.log('[ANTI UPSERT]', e.message); }
+      }
+      if (up.messages.length) await handleMessage(sock, up, clean, liveSettings);
     } catch (e) { console.log('[UP ERROR]', e.message); }
   });
 
+  // ===== ANTI-DELETE - FIXED: Was only console.log, now really recovers =====
   sock.ev.on('messages.update', async (updates) => {
     try {
       for (const u of updates) {
-        if (u.update?.message === null && global.db.anti?.[u.key.remoteJid]?.antidelete) {
-          console.log(`[ANTI-DELETE] Deleted in ${u.key.remoteJid}`);
+        if (u.update?.message === null) {
+          await anti.handleDelete(sock, u);
         }
       }
-    } catch {}
+    } catch (e) { console.log('[ANTI DELETE]', e.message); }
+  });
+
+  // ===== ANTI-FAKE ON JOIN - FIXED: Was missing completely =====
+  sock.ev.on('group-participants.update', async (update) => {
+    try {
+      await anti.handleParticipantUpdate(sock, update);
+    } catch (e) { console.log('[ANTI JOIN]', e.message); }
   });
 
   if (!state.creds.registered) {
