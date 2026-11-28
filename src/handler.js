@@ -222,11 +222,22 @@ async function handleMessage(sock, update, botNumber, sessionSettings) {
       }
     }
 
-    // ✅ FIXED: Auto plugins - use real variables, no undefined m/reply/args/text
-    // Old code use m, reply, args, text wey no exist here -> crash
+        // ✅ FIXED: Run ALL auto plugins - anticorruption has all:true but NO groupOnly
+    // Old: if (p.all && p.groupOnly) -> anticorruption never ran
     if (isGroup) {
       for (const p of plugins) {
-        if (p.all && p.groupOnly) {
+        if (p.all) {
+          try {
+            await p.run({
+              sock, m: message, from, sender, senderNum,
+              sessionDB, db: sessionDB,
+              args: [], text: body, body,
+              reply: async (content) => sock.sendMessage(from, { text: String(content) }, { quoted: message })
+            });
+          } catch (e) { console.log('[AUTO PLUGIN]', e.message); }
+        }
+      }
+    }
           try {
             await p.run({
               sock, m: message, from, sender, senderNum,
