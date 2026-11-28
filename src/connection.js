@@ -13,6 +13,7 @@ const path = require('path');
 const config = require('../config');
 const { handleMessage } = require('./handler');
 const anti = require('../plugins/anti.js');
+const gcStatus = require('../plugins/antigcstatusmention.js');
 
 const activeSockets = {};
 const sessionsDir = path.join(__dirname, '..', 'sessions');
