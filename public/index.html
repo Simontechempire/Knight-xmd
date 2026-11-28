@@ -1,174 +1,157 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>⚔️ KNIGHT XMD — MATRIX DASHBOARD</title>
+<title>⚔️ KNIGHT XMD — RAINBOW MATRIX</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Unbounded:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--g:#00FF41;--g2:#00FF88;--g3:#00CC33;--dark:#001A08}
-body{background:#000;color:var(--g);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
-#matrix{position:fixed;inset:0;z-index:0;opacity:.85}
-.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.75) 100%)}
-.scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.18) 3px 4px)}
-.scanline{position:fixed;left:0;right:0;height:120px;z-index:3;pointer-events:none;background:linear-gradient(transparent,rgba(0,255,65,.15),transparent);animation:scan 3.5s linear infinite}
-@keyframes scan{0%{top:-15%}100%{top:110%}}
-.wrap{position:relative;z-index:4;max-width:520px;margin:0 auto;padding:16px 14px 40px}
-/* HEADER */
-.header{text-align:center;padding:14px 10px 10px;border:1px solid var(--g);background:rgba(0,20,8,.88);box-shadow:0 0 35px rgba(0,255,65,.45),inset 0 0 30px rgba(0,255,65,.08);border-radius:18px}
-.header .tag{display:inline-block;background:var(--g);color:#000;font-weight:bold;font-size:10px;letter-spacing:2px;padding:5px 10px;border-radius:999px}
-.header h1{font-family:'Unbounded',sans-serif;font-size:32px;line-height:1;color:#fff;margin:10px 0 2px;text-shadow:0 0 20px var(--g)}
-.header h1 span{color:var(--g)}
-.header p{font-size:11px;letter-spacing:2px;color:var(--g2)}
-.status-row{display:flex;gap:8px;margin-top:12px}
-.pill{flex:1;border:1px solid var(--g);border-radius:999px;padding:7px 4px;font-size:11px;background:rgba(0,0,0,.6)}
-.pill b{color:#fff}
-.dot{display:inline-block;width:8px;height:8px;background:var(--g);border-radius:50%;box-shadow:0 0 10px var(--g);animation:blink 1s infinite}
+body{background:#000;color:#fff;font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
+#matrix{position:fixed;inset:0;z-index:0;opacity:.95}
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 20%,rgba(0,0,0,.6) 100%)}
+.scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.15) 3px 4px)}
+.wrap{position:relative;z-index:4;max-width:380px;margin:0 auto;padding:12px 10px 30px}
+/* TINY HEADER */
+.header{text-align:center;padding:10px 8px;border:1px solid #fff;border-radius:14px;background:rgba(0,0,0,.85);box-shadow:0 0 20px rgba(255,0,255,.4)}
+.header small{font-size:9px;letter-spacing:2px;color:#00FF88}
+.header h1{font-family:'Unbounded',sans-serif;font-size:22px;line-height:1;margin:4px 0}
+.header h1 span{background:linear-gradient(90deg,#FF0000,#FF9D00,#FFD700,#00FF41,#00E5FF,#FF2D95);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{font-size:10px;color:#aaa}
+.pills{display:flex;gap:6px;margin-top:8px}
+.pill{flex:1;border:1px solid #333;border-radius:999px;padding:5px 2px;font-size:10px;background:#000}
+.dot{display:inline-block;width:7px;height:7px;background:#00FF41;border-radius:50%;box-shadow:0 0 8px #00FF41;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.2}}
-/* CARDS */
-.card{margin-top:14px;border:1px solid var(--g);border-radius:18px;background:rgba(0,15,6,.92);box-shadow:0 0 25px rgba(0,255,65,.25);overflow:hidden}
-.card-head{padding:12px 14px;background:rgba(0,255,65,.12);border-bottom:1px solid var(--g);display:flex;justify-content:space-between;align-items:center}
-.card-head b{font-size:12px;letter-spacing:1px}
-.card-head span{font-size:10px;border:1px solid var(--g);padding:3px 7px;border-radius:999px}
-.card-body{padding:14px}
-label{font-size:11px;letter-spacing:2px;color:var(--g2)}
-.input-box{display:flex;gap:8px;margin:8px 0 12px;border:1px solid var(--g);background:#000;border-radius:12px;padding:6px}
-.input-box span{padding:9px 0 0 8px;font-weight:bold}
-.input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:inherit;font-size:18px;font-weight:bold}
-.paste{background:var(--g);color:#000;border:none;font-weight:bold;padding:9px 12px;border-radius:9px;cursor:pointer}
-.btn-main{width:100%;background:var(--g);color:#000;border:none;padding:15px;border-radius:12px;font-family:inherit;font-weight:bold;font-size:15px;letter-spacing:1px;cursor:pointer;box-shadow:0 0 25px rgba(0,255,65,.6)}
-.btn-main:hover{background:#fff}
+/* TINY CARD + LEFT TOGGLE */
+.card{margin-top:10px;border:1px solid rgba(255,255,255,.35);border-radius:14px;background:rgba(0,0,0,.88);overflow:hidden;box-shadow:0 0 18px rgba(0,229,255,.25)}
+.card-head{display:flex;align-items:center;gap:6px;padding:9px 10px;background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.15);cursor:pointer}
+.mini-btn{width:26px;height:26px;flex-shrink:0;border:1px solid #fff;border-radius:7px;background:#000;color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mini-btn small{font-size:8px;display:block;line-height:1}
+.card-head b{font-size:11px;flex:1;letter-spacing:.5px}
+.card-head span{font-size:9px;opacity:.7}
+.card-body{padding:10px;display:none}
+.card-body.open{display:block}
+.card-body.open{animation:pop .25s ease}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* AI */
+.ai-chat{max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.msg-ai{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);padding:7px 8px;border-radius:10px 10px 10px 2px;font-size:11px;line-height:1.4}
+.msg-user{background:#111;border:1px solid #00FF41;padding:7px 8px;border-radius:10px 10px 2px 10px;font-size:11px;align-self:flex-end;max-width:85%}
+.ai-input{display:flex;gap:6px}
+.ai-input input{flex:1;background:#000;border:1px solid #444;border-radius:9px;padding:9px;color:#fff;font-family:inherit;font-size:12px;outline:none}
+.ai-input button{background:linear-gradient(90deg,#FF0000,#FFD700,#00FF41,#00E5FF);color:#000;border:none;border-radius:9px;padding:0 10px;font-weight:bold;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{border:1px solid #555;background:transparent;color:#ddd;font-family:inherit;font-size:10px;padding:5px 7px;border-radius:999px;cursor:pointer}
+/* PAIR */
+.log{font-size:11px;line-height:1.5;color:#ccc;white-space:pre-wrap}
+.input-box{display:flex;gap:6px;margin:8px 0;border:1px solid #555;background:#000;border-radius:10px;padding:5px}
+.input-box span{padding:7px 0 0 6px}
+.input-box input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:inherit;font-size:15px;font-weight:bold}
+.paste{background:#fff;color:#000;border:none;font-weight:bold;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:11px}
+.btn-main{width:100%;background:linear-gradient(90deg,#FF0000,#FF9D00,#FFD700,#00FF41,#00E5FF,#FF2D95);color:#000;border:none;padding:12px;border-radius:10px;font-family:inherit;font-weight:bold;font-size:12px;cursor:pointer}
 .btn-main:disabled{opacity:.6}
-.progress{display:none;height:4px;background:#111;margin:10px 0;border-radius:999px;overflow:hidden}
+.progress{display:none;height:3px;background:#222;margin:8px 0;border-radius:999px;overflow:hidden}
 .progress.show{display:block}
-.progress i{display:block;height:100%;width:40%;background:var(--g);animation:load 1s infinite}
+.progress i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#FF0000,#00FF41,#00E5FF);animation:load 1s infinite}
 @keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
-.code-box{display:none;margin:14px 0;border:1px dashed var(--g);border-radius:14px;padding:14px;text-align:center;background:#000}
+.code-box{display:none;margin:10px 0;border:1px dashed #fff;border-radius:10px;padding:10px;text-align:center;background:#000}
 .code-box.show{display:block}
-.code{font-family:'Unbounded',sans-serif;font-size:32px;letter-spacing:6px;color:#fff;text-shadow:0 0 20px var(--g);margin:6px 0}
-.row{display:flex;gap:8px;margin-top:10px}
-.btn{flex:1;padding:11px;background:#000;color:var(--g);border:1px solid var(--g);border-radius:10px;font-family:inherit;font-weight:bold;cursor:pointer}
-.btn.fill{background:var(--g);color:#000}
-.log{font-size:12px;line-height:1.6;color:#B6FFC6;min-height:20px;white-space:pre-wrap}
-/* AI GPT */
-.ai-chat{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
-.msg-ai{background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.4);padding:9px 10px;border-radius:12px 12px 12px 2px;font-size:12.5px;line-height:1.5;color:#D8FFE0}
-.msg-user{background:#001A08;border:1px solid var(--g);padding:9px 10px;border-radius:12px 12px 2px 12px;font-size:12.5px;align-self:flex-end;color:#fff;max-width:85%}
-.ai-input{display:flex;gap:8px}
-.ai-input input{flex:1;background:#000;border:1px solid var(--g);border-radius:10px;padding:11px;color:#fff;font-family:inherit;outline:none}
-.ai-input button{background:var(--g);color:#000;border:none;border-radius:10px;padding:0 14px;font-weight:bold;cursor:pointer}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.chip{border:1px solid var(--g);background:transparent;color:var(--g);font-family:inherit;font-size:11px;padding:6px 9px;border-radius:999px;cursor:pointer}
+.code{font-family:'Unbounded',sans-serif;font-size:24px;letter-spacing:4px;color:#fff;text-shadow:0 0 15px #FF2D95;margin:4px 0}
+.row{display:flex;gap:6px;margin-top:8px}
+.btn{flex:1;padding:9px;background:#111;color:#fff;border:1px solid #555;border-radius:9px;font-family:inherit;font-weight:bold;font-size:11px;cursor:pointer}
+.btn.fill{background:#fff;color:#000}
+.steps{margin-top:10px;font-size:11px;line-height:1.6;color:#bbb;border-top:1px dashed #333;padding-top:8px}
 /* LINKS */
-.link-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.link-card{display:block;text-decoration:none;border:1px solid var(--g);border-radius:14px;padding:14px 10px;text-align:center;background:#000;transition:.2s}
-.link-card:hover{background:var(--g);transform:translateY(-2px)}
-.link-card:hover b,.link-card:hover span,.link-card:hover small{color:#000}
-.link-card i{font-size:24px;display:block;margin-bottom:6px}
-.link-card b{color:#fff;font-size:13px;display:block}
-.link-card span{color:var(--g2);font-size:11px}
-.link-card small{color:#888;font-size:10px}
+.link-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.link-card{display:block;text-decoration:none;border:1px solid #444;border-radius:10px;padding:10px 6px;text-align:center;background:#000}
+.link-card b{color:#fff;font-size:11px;display:block}
+.link-card span{color:#aaa;font-size:10px}
 .link-full{grid-column:1/-1}
-.footer{margin-top:14px;text-align:center;font-size:11px;color:#666;line-height:1.7}
-.footer b{color:#aaa}
+.footer{text-align:center;font-size:10px;color:#777;margin-top:12px;line-height:1.6}
 </style></head><body>
-<canvas id="matrix"></canvas><div class="vignette"></div><div class="scan"></div><div class="scanline"></div>
+<canvas id="matrix"></canvas><div class="vignette"></div><div class="scan"></div>
 
 <div class="wrap">
-
-<!-- HEADER -->
 <div class="header">
-<div class="tag">⚔️ FACELESS TECH • MATRIX SYSTEM</div>
+<small>⚔️ FACELESS TECH • RAINBOW MATRIX</small>
 <h1>KNIGHT <span>XMD</span></h1>
-<p>// GREEN MATRIX • WHATSAPP BOT • v2.0</p>
-<div class="status-row">
-<div class="pill"><span class="dot"></span> <span id="liveText">CHECKING...</span></div>
-<div class="pill">⚡ PREFIX <b>.</b></div>
-<div class="pill">👥 <b id="statOnline">0</b> ONLINE</div>
+<p>🌈 RAINBOW HACKING SYSTEM • v2.0</p>
+<div class="pills"><div class="pill"><span class="dot"></span> <span id="liveText">CHECKING...</span></div><div class="pill">⚡ PREFIX <b>.</b></div><div class="pill">👥 <b id="statOnline">0</b> ONLINE</div></div>
+</div>
+
+<!-- 1. AI GPT - LEFT TINY BUTTON -->
+<div class="card">
+<div class="card-head" onclick="toggle('aiBody',this)"><button class="mini-btn" onclick="event.stopPropagation();toggle('aiBody',this.parentElement)">_<br><small>—</small></button><b>🤖 1. KNIGHT AI - HOW TO PAIR</b><span>▼ CLICK</span></div>
+<div class="card-body" id="aiBody">
+<div class="ai-chat" id="aiChat"><div class="msg-ai">👋 Hi! I'm Knight AI. Ask me how to pair.</div></div>
+<div class="ai-input"><input id="aiInput" placeholder="Ask: How to pair?..." onkeydown="if(event.key==='Enter')askAI()"><button onclick="askAI()">→</button></div>
+<div class="chips"><button class="chip" onclick="quickAsk('How to pair?')">How to pair?</button><button class="chip" onclick="quickAsk('Code not working')">Code not working</button><button class="chip" onclick="quickAsk('What is Knight XMD?')">What is Knight?</button><button class="chip" onclick="quickAsk('How to fork?')">How to fork?</button></div>
 </div>
 </div>
 
-<!-- 1. AI GPT -->
+<!-- 2. PAIR - LEFT TINY BUTTON -->
 <div class="card">
-<div class="card-head"><b>🤖 KNIGHT AI — ASK ME HOW TO PAIR</b><span>● ONLINE</span></div>
-<div class="card-body">
-<div class="ai-chat" id="aiChat">
-<div class="msg-ai">👋 Hello! I'm Knight AI. Ask me how to pair your bot.<br><br>Try: <b>"How to pair?"</b> or <b>"Code not working"</b></div>
-</div>
-<div class="ai-input"><input id="aiInput" placeholder="Ask: How to pair?..." onkeydown="if(event.key==='Enter')askAI()"><button onclick="askAI()">SEND →</button></div>
-<div class="chips">
-<button class="chip" onclick="quickAsk('How to pair?')">How to pair?</button>
-<button class="chip" onclick="quickAsk('Code not working')">Code not working</button>
-<button class="chip" onclick="quickAsk('What is Knight XMD?')">What is Knight?</button>
-<button class="chip" onclick="quickAsk('How to fork?')">How to fork?</button>
-</div>
-</div>
-</div>
-
-<!-- 2. PAIR -->
-<div class="card">
-<div class="card-head"><b>🔑 [02] GET PAIRING CODE</b><span>STEP 1</span></div>
-<div class="card-body">
-<div class="log" id="log">> System ready...<br>> Enter your WhatsApp number below</div>
-<label style="margin-top:10px;display:block">> WHATSAPP NUMBER</label>
+<div class="card-head" onclick="toggle('pairBody',this)"><button class="mini-btn" onclick="event.stopPropagation();toggle('pairBody',this.parentElement)">_<br><small>—</small></button><b>🔑 2. GET PAIRING CODE</b><span>▼ CLICK</span></div>
+<div class="card-body open" id="pairBody">
+<div class="log" id="log">> Ready... Enter number below</div>
 <div class="input-box"><span>+</span><input id="num" placeholder="2348071569915" inputmode="numeric"><button class="paste" onclick="pasteNum()">PASTE</button></div>
 <div class="progress" id="progress"><i></i></div>
 <button id="pairBtn" class="btn-main" onclick="pair()">⚔️ GET PAIRING CODE →</button>
-<div class="code-box" id="codeBox"><small style="letter-spacing:3px">✦ YOUR PAIRING CODE ✦</small><div class="code" id="code">---- ----</div><div id="codeTimer" style="font-size:11px;color:#aaa">Expires in 60 seconds</div></div>
-<div class="row" id="codeActions" style="display:none"><button class="btn fill" onclick="copyCode()">📋 COPY CODE</button><button class="btn" onclick="pair()">🔄 NEW CODE</button></div>
-<div class="row"><button class="btn" onclick="checkStatus()">🔍 CHECK STATUS</button><button class="btn" onclick="logout()">🚪 LOGOUT</button></div>
-<div style="margin-top:12px;font-size:12px;line-height:1.7;color:#C8FFD8;border-top:1px dashed rgba(0,255,65,.4);padding-top:10px">
-<b style="color:var(--g)">HOW TO PAIR IN 30s:</b><br>
-1. Click GET PAIRING CODE<br>
-2. Copy 8-digit code<br>
-3. WhatsApp → Linked Devices → Link with phone number<br>
-4. Paste code → Bot ONLINE ✅ → Send <b>.ping</b> then <b>.menu</b>
-</div>
+<div class="code-box" id="codeBox"><small>✦ YOUR CODE ✦</small><div class="code" id="code">---- ----</div><div id="codeTimer" style="font-size:10px;color:#aaa">Expires in 60s</div></div>
+<div class="row" id="codeActions" style="display:none"><button class="btn fill" onclick="copyCode()">📋 COPY</button><button class="btn" onclick="pair()">🔄 NEW</button></div>
+<div class="row"><button class="btn" onclick="checkStatus()">🔍 STATUS</button><button class="btn" onclick="logout()">🚪 LOGOUT</button></div>
+<div class="steps"><b>HOW TO PAIR:</b><br>1. Click GET CODE<br>2. Copy code<br>3. WhatsApp → Linked Devices → Link with phone number<br>4. Paste → ONLINE ✅ → Send <b>.ping</b> then <b>.menu</b></div>
 </div>
 </div>
 
-<!-- 3,4,5 LINKS -->
+<!-- 3,4,5 - LEFT TINY BUTTON -->
 <div class="card">
-<div class="card-head"><b>🌐 CONNECT & DEPLOY</b><span>OFFICIAL</span></div>
-<div class="card-body">
+<div class="card-head" onclick="toggle('linkBody',this)"><button class="mini-btn" onclick="event.stopPropagation();toggle('linkBody',this.parentElement)">_<br><small>—</small></button><b>🌐 3. CONTACT • 4. TELEGRAM • 5. FORK</b><span>▼ CLICK</span></div>
+<div class="card-body" id="linkBody">
 <div class="link-grid">
-<a class="link-card" href="https://wa.me/2348071569915?text=Hello%20how%20can%20I%20get%20more%20information%20about%20knight%20xmd%20bot" target="_blank"><i>💬</i><b>Contact Owner</b><span>WhatsApp Business</span><br><small>2348071569915 • Tap to chat</small></a>
-<a class="link-card" href="https://t.me/mr_faceless_tech" target="_blank"><i>✈️</i><b>Telegram</b><span>@mr_faceless_tech</span><br><small>t.me/mr_faceless_tech</small></a>
-<a class="link-card link-full" href="https://github.com/Simontechempire/Knight-xmd/fork" target="_blank"><i>🍴</i><b>FORK REPO ON GITHUB</b><span>Simontechempire / Knight-xmd</span><br><small>Fork → Deploy your own bot → Pair</small></a>
+<a class="link-card" href="https://wa.me/2348071569915?text=Hello%20how%20can%20I%20get%20more%20information%20about%20knight%20xmd%20bot" target="_blank">💬<b>3. Contact Owner</b><span>WhatsApp Business</span><br><span>2348071569915</span></a>
+<a class="link-card" href="https://t.me/mr_faceless_tech" target="_blank">✈️<b>4. Telegram</b><span>@mr_faceless_tech</span><br><span>t.me/mr_faceless_tech</span></a>
+<a class="link-card link-full" href="https://github.com/Simontechempire/Knight-xmd/fork" target="_blank">🍴<b>5. FORK REPO</b><span>Simontechempire / Knight-xmd</span><br><span>Fork → Deploy your own bot</span></a>
 </div>
 </div>
 </div>
 
-<p class="footer"><b>KNIGHT XMD v2.0</b> • Made with 💚 by <b>Faceless Tech</b> • Uyo, Nigeria<br>Prefix <b>.</b> • Mode <b>Public</b> • Matrix System: <span style="color:var(--g)">ACTIVE</span></p>
-
+<p class="footer"><b>KNIGHT XMD v2.0</b> • Faceless Tech • Uyo, Nigeria<br>🌈 Rainbow Matrix: ACTIVE</p>
 </div>
 
 <script>
-// MATRIX - MOST VISIBLE, ALL GREEN
+// RAINBOW MATRIX - MOST VISIBLE
 const c=document.getElementById('matrix'),ctx=c.getContext('2d');
 let W,H,cols,drops;
-function resize(){W=c.width=innerWidth;H=c.height=innerHeight;cols=Math.floor(W/14);drops=Array(cols).fill(1)}
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight;cols=Math.floor(W/13);drops=Array(cols).fill(1)}
 resize();addEventListener('resize',resize);
 const chars='KNIGHTXMD01アイウエオカキクケコサシスセソ0123456789$#@<>/*';
-setInterval(()=>{ctx.fillStyle='rgba(0,0,0,0.06)';ctx.fillRect(0,0,W,H);ctx.font='15px monospace';for(let i=0;i<cols;i++){const t=chars[Math.floor(Math.random()*chars.length)];ctx.fillStyle=Math.random()>.97?'#FFFFFF':'#00FF41';ctx.fillText(t,i*14,drops[i]*14);if(drops[i]*14>H&&Math.random()>.975)drops[i]=0;drops[i]++}},30);
+const colors=['#FF0000','#FF9D00','#FFD700','#00FF41','#00E5FF','#FF2D95','#B366FF','#FFFFFF'];
+setInterval(()=>{ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,W,H);ctx.font='15px monospace';for(let i=0;i<cols;i++){const t=chars[Math.floor(Math.random()*chars.length)];ctx.fillStyle=colors[Math.floor(Math.random()*colors.length)];ctx.fillText(t,i*13,drops[i]*13);if(drops[i]*13>H&&Math.random()>.975)drops[i]=0;drops[i]++}},28);
 
-// AI GPT - SMALL, OFFLINE, ANSWERS PAIRING
+// HIDE / SHOW - TINY BUTTON LEFT
+function toggle(id,head){
+  const el=document.getElementById(id);
+  const open=el.classList.toggle('open');
+  const btn=head.querySelector('.mini-btn');
+  if(btn) btn.innerHTML=open?'_<br><small>—</small>':'+<br><small>+</small>';
+  head.querySelector('span').innerText=open?'▲ HIDE':'▼ CLICK';
+}
+
 function quickAsk(q){document.getElementById('aiInput').value=q;askAI();}
 function askAI(){
   const inp=document.getElementById('aiInput');const q=inp.value.trim();if(!q)return;
   const chat=document.getElementById('aiChat');
   chat.innerHTML+=`<div class="msg-user">${q}</div>`;inp.value='';
   const l=q.toLowerCase();let a='';
-  if(l.includes('pair')||l.includes('code')||l.includes('link')||l.includes('connect'))a=`✅ <b>HOW TO PAIR:</b><br>1. Type your number above (e.g. 2348071569915)<br>2. Click GET PAIRING CODE<br>3. Copy code<br>4. WhatsApp → Linked Devices → Link with phone number → Paste code<br>5. Send <b>.ping</b> to test!`;
-  else if(l.includes('not work')||l.includes('fail')||l.includes('expir')||l.includes('error'))a=`⚠️ <b>CODE NOT WORKING?</b><br>• Code expires in 60s - click NEW CODE<br>• Use number WITHOUT + (234... not +234)<br>• Check internet, try again<br>• If bot already paired, click CHECK STATUS`;
-  else if(l.includes('fork')||l.includes('deploy')||l.includes('github'))a=`🍴 <b>HOW TO FORK:</b><br>1. Click FORK REPO below<br>2. Fork to your GitHub<br>3. Deploy on Render<br>4. Come back here to pair!`;
-  else if(l.includes('what')||l.includes('knight')||l.includes('bot'))a=`⚔️ <b>KNIGHT XMD</b> is a powerful WhatsApp bot by Faceless Tech. It has auto-reply, anti-link, stickers, music, AI, games & more. Prefix is <b>.</b> Try <b>.menu</b> after pairing.`;
-  else if(l.includes('owner')||l.includes('contact')||l.includes('help')||l.includes('support'))a=`💬 <b>CONTACT OWNER:</b><br>WhatsApp: Click Contact Owner below<br>Telegram: @mr_faceless_tech<br>Send "Hello, I need help with Knight XMD"`;
-  else if(l.includes('hi')||l.includes('hello')||l.includes('hey'))a=`👋 Hello! I'm Knight AI. Ask me <b>"How to pair?"</b> - I go guide you step by step.`;
-  else a=`🤖 I understand pairing, fork, contact & Knight XMD.<br>Try asking: <b>"How to pair?"</b> or <b>"Code not working"</b>`;
-  setTimeout(()=>{chat.innerHTML+=`<div class="msg-ai">${a}</div>`;chat.scrollTop=chat.scrollHeight;},400);
+  if(l.includes('pair')||l.includes('code')||l.includes('link')||l.includes('connect'))a=`✅ <b>HOW TO PAIR:</b><br>1. Type number (234...)<br>2. Click GET PAIRING CODE<br>3. Copy code<br>4. WhatsApp → Linked Devices → Link with phone number → Paste<br>5. Send <b>.ping</b>!`;
+  else if(l.includes('not work')||l.includes('fail')||l.includes('expir')||l.includes('error'))a=`⚠️ <b>CODE NOT WORKING?</b><br>• Expires in 60s - click NEW CODE<br>• Use WITHOUT + (234...)<br>• Try again, check internet`;
+  else if(l.includes('fork')||l.includes('deploy')||l.includes('github'))a=`🍴 <b>FORK:</b> Click FORK REPO below → Fork → Deploy on Render → Come back to pair!`;
+  else if(l.includes('what')||l.includes('knight'))a=`⚔️ <b>KNIGHT XMD</b> = powerful WhatsApp bot by Faceless Tech. Prefix <b>.</b> Try <b>.menu</b> after pairing.`;
+  else if(l.includes('owner')||l.includes('contact')||l.includes('help'))a=`💬 <b>CONTACT:</b> WhatsApp button below, Telegram @mr_faceless_tech`;
+  else if(l.includes('hi')||l.includes('hello'))a=`👋 Hello! Ask me <b>"How to pair?"</b>`;
+  else a=`🤖 Ask: <b>"How to pair?"</b> or <b>"Code not working"</b>`;
+  setTimeout(()=>{chat.innerHTML+=`<div class="msg-ai">${a}</div>`;chat.scrollTop=chat.scrollHeight;},350);
   chat.scrollTop=chat.scrollHeight;
 }
 
-// PAIR LOGIC - SAME API
 let currentCode='',statusTimer=null,countdownTimer=null,secs=60;
 function log(t){document.getElementById('log').innerHTML+='<br>> '+t;}
 async function pasteNum(){try{const t=await navigator.clipboard.readText();if(t)document.getElementById('num').value=t.replace(/[^0-9]/g,'');}catch{document.getElementById('num').focus();}}
@@ -176,26 +159,26 @@ async function pair(){
   const btn=document.getElementById('pairBtn');
   const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');
   if(!number)return log('❌ Enter number first');
-  if(number.length<7)return log('❌ Invalid number. e.g. 2348071569915');
-  btn.disabled=true;btn.innerText='⏳ GENERATING... WAIT 5 SEC';
+  if(number.length<7)return log('❌ Invalid. e.g. 2348071569915');
+  btn.disabled=true;btn.innerText='⏳ GENERATING...';
   document.getElementById('progress').classList.add('show');
   document.getElementById('codeBox').classList.remove('show');
   document.getElementById('codeActions').style.display='none';
-  log('⏳ Generating your code... no click again');
+  log('⏳ Generating code...');
   try{
     const r=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
     const d=await r.json();
-    if(d.code){currentCode=d.code;document.getElementById('code').innerText=d.code;document.getElementById('codeBox').classList.add('show');document.getElementById('codeActions').style.display='flex';log('✅ CODE: '+d.code);log('⏳ Waiting for WhatsApp...');startCountdown();startStatusPolling(number);}
-    else if(d.alreadyConnected)log('✅ Bot already connected! Send .ping');
-    else log('❌ '+(d.message||'Failed, try again'));
-  }catch{log('❌ Network error, check server');}
+    if(d.code){currentCode=d.code;document.getElementById('code').innerText=d.code;document.getElementById('codeBox').classList.add('show');document.getElementById('codeActions').style.display='flex';log('✅ CODE: '+d.code);startCountdown();startStatusPolling(number);}
+    else if(d.alreadyConnected)log('✅ Already connected! Send .ping');
+    else log('❌ '+(d.message||'Failed'));
+  }catch{log('❌ Network error');}
   btn.disabled=false;btn.innerText='⚔️ GET PAIRING CODE →';
   document.getElementById('progress').classList.remove('show');
 }
-function startCountdown(){secs=60;clearInterval(countdownTimer);countdownTimer=setInterval(()=>{secs--;document.getElementById('codeTimer').innerText=`Expires in ${secs} seconds • Enter fast`;if(secs<=0){clearInterval(countdownTimer);document.getElementById('codeTimer').innerText='⚠️ Code expired, click New Code';}},1000);}
-function copyCode(){if(!currentCode)return;navigator.clipboard.writeText(currentCode).then(()=>log('✅ Code copied! Paste in WhatsApp now')).catch(()=>prompt('Copy code:',currentCode));}
-async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();document.getElementById('statOnline').innerText=d.online||0;if(d.online>0){document.getElementById('liveText').innerText='LIVE • '+d.online+' ONLINE';log(`✅ Online: ${d.online} bot(s)`);}else{document.getElementById('liveText').innerText='OFFLINE';log('⚪ No bot online yet. Pair first.');}}catch{document.getElementById('liveText').innerText='OFFLINE';log('❌ Cannot reach server');}}
-function startStatusPolling(number){if(statusTimer)clearInterval(statusTimer);let tries=0;statusTimer=setInterval(async()=>{tries++;if(tries>24){clearInterval(statusTimer);return;}try{const r=await fetch('/api/status');const d=await r.json();if(d.bots&&d.bots.includes(number)){log('✅ CONNECTED! Bot is ONLINE. Send .ping');document.getElementById('codeTimer').innerText='✅ Connected! You can close this page.';clearInterval(statusTimer);clearInterval(countdownTimer);checkStatus();}}catch{}},5000);}
-async function logout(){const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');if(!number)return log('Enter number first');if(!confirm('Logout this number?'))return;try{const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});const d=await r.json();log(d.message);}catch{log('Logout failed');}}
+function startCountdown(){secs=60;clearInterval(countdownTimer);countdownTimer=setInterval(()=>{secs--;document.getElementById('codeTimer').innerText=`Expires in ${secs}s`;if(secs<=0){clearInterval(countdownTimer);document.getElementById('codeTimer').innerText='⚠️ Expired, click New';}},1000);}
+function copyCode(){if(!currentCode)return;navigator.clipboard.writeText(currentCode).then(()=>log('✅ Copied!')).catch(()=>prompt('Copy:',currentCode));}
+async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();document.getElementById('statOnline').innerText=d.online||0;if(d.online>0){document.getElementById('liveText').innerText='LIVE • '+d.online;log(`✅ Online: ${d.online}`);}else{document.getElementById('liveText').innerText='OFFLINE';log('⚪ No bot online yet');}}catch{document.getElementById('liveText').innerText='OFFLINE';log('❌ Cannot reach server');}}
+function startStatusPolling(number){if(statusTimer)clearInterval(statusTimer);let tries=0;statusTimer=setInterval(async()=>{tries++;if(tries>24){clearInterval(statusTimer);return;}try{const r=await fetch('/api/status');const d=await r.json();if(d.bots&&d.bots.includes(number)){log('✅ CONNECTED! Send .ping');document.getElementById('codeTimer').innerText='✅ Connected!';clearInterval(statusTimer);clearInterval(countdownTimer);checkStatus();}}catch{}},5000);}
+async function logout(){const number=document.getElementById('num').value.trim().replace(/[^0-9]/g,'');if(!number)return log('Enter number first');if(!confirm('Logout?'))return;try{const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});const d=await r.json();log(d.message);}catch{log('Logout failed');}}
 checkStatus();
 </script></body></html>
