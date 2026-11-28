@@ -15,6 +15,8 @@ const { handleMessage } = require('./handler');
 const anti = require('../plugins/anti.js');
 // FIX 1: Correct file - was antigcstatusmention.js (old, never deleted)
 const gcStatus = require('../plugins/gcstatusdelete.js');
+// FIX VV: Added - View Once Recovery
+const vv = require('../plugins/vv.js');
 
 const activeSockets = {};
 const sessionsDir = path.join(__dirname, '..', 'sessions');
@@ -119,6 +121,10 @@ async function startBot(number) {
   sock.sessionOwner = clean;
   sock.sessionSettings = sessionSettings;
   sock.sessionNumber = clean;
+
+  // ===== FIX VV: Attach ONCE - NOT inside messages.upsert =====
+  // If this fails, it will NOT crash - try/catch, bot continues
+  try { vv.attachEngine(sock); } catch (e) { console.log('[VV ATTACH]', e.message); }
 
   sock.ev.on('creds.update', saveCreds);
 
