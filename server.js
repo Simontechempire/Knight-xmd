@@ -1,31 +1,25 @@
-// KNIGHT XMD - Dashboard Server - Fixed with SIMON Engine + 20 DEVICES
+// KNIGHT XMD - Dashboard Server - FIXED STATUS + PAIR + CACHED
 const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
 const config = require('./config');
 const { startBot, activeSockets } = require('./src/connection');
-const devicesApi = require('./src/devicesApi'); // <-- 20 DEVICES - NEW
+const devicesApi = require('./src/devicesApi');
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/api', devicesApi); // <-- 20 DEVICES API - NEW - GET /api/devices , POST /api/pair/:slot
 
-// ========== PAIRING - FIXED - NO BLOCKING ==========
+// ========== PAIRING - MUST BE BEFORE devicesApi ==========
 app.post('/api/pair', async (req, res) => {
   try {
     const { number } = req.body;
     if (!number) return res.json({ success: false, message: 'Number required. Example: 2348071569915' });
-
     const clean = number.replace(/[^0-9]/g, '');
     if (clean.length < 7 || clean.length > 15) {
       return res.json({ success: false, message: 'Invalid number. Use full number with country code, e.g. 2348071569915' });
     }
-
-    // FIX: DON'T block if socket exists - startBot() already handles
-    // returning same code if <25 sec, or restarting if dead.
-    // Blocking here was causing "couldn't link"
     const result = await startBot(clean);
     res.json({ ...result, number: clean });
   } catch (e) {
@@ -34,7 +28,6 @@ app.post('/api/pair', async (req, res) => {
   }
 });
 
-// ========== GETCODE - SIMON STYLE - for browser link ==========
 app.get('/getcode', async (req, res) => {
   try {
     let phone = (req.query.number || req.query.phone || '').replace(/[^0-9]/g, '');
@@ -49,11 +42,11 @@ app.get('/getcode', async (req, res) => {
   }
 });
 
-// ========== STATUS - FIXED, REAL DATA ==========
+// ========== STATUS - FIXED: bots as STRINGS + detailed separate ==========
 app.get('/api/status', (req, res) => {
-  const bots = Object.keys(activeSockets);
-  // Show which bots are truly connected (have user) vs just waiting for code
-  const detailed = bots.map(n => ({
+  const all = Object.keys(activeSockets);
+  const connected = all.filter(b => activeSockets[b]?.user);
+  const detailed = all.map(n => ({
     number: n,
     connected: !!activeSockets[n]?.user,
     waitingForCode: !!activeSockets[n]?.pairingCode,
@@ -61,9 +54,11 @@ app.get('/api/status', (req, res) => {
   }));
   res.json({
     success: true,
-    online: bots.filter(b => activeSockets[b]?.user).length,
-    waiting: bots.filter(b => !activeSockets[b]?.user).length,
-    bots: detailed,
+    online: connected.length,
+    waiting: all.length - connected.length,
+    bots: connected, // <-- FIX: strings only, so .includes(number) works
+    allBots: all,
+    detailed: detailed, // <-- for devices page
     uptime: Math.floor((Date.now() - (global.botStart || Date.now())) / 1000),
     prefix: config.prefix,
     mode: config.mode,
@@ -71,7 +66,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// ========== LOGOUT / STOP BOT ==========
+// ========== LOGOUT ==========
 app.post('/api/logout', async (req, res) => {
   try {
     const { number } = req.body;
@@ -87,6 +82,9 @@ app.post('/api/logout', async (req, res) => {
   } catch (e) { res.json({ success: false, message: e.message }); }
 });
 
+// Devices API AFTER pair/status - so it no hijack them
+app.use('/api', devicesApi);
+
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 app.get('/api/ping', (req, res) => res.json({ success: true, message: 'pong' }));
 
@@ -101,7 +99,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// ========== FIX: AUTO-START SAVED BOTS ON PANEL RESTART - PANEL + DIRECT + 20 USERS ==========
 async function autoRestoreBots() {
   try {
     const sessionsDir = path.join(__dirname, 'sessions');
@@ -113,16 +110,10 @@ async function autoRestoreBots() {
       const credsPath = path.join(sessionsDir, folder, 'creds.json');
       if (!await fs.pathExists(credsPath)) continue;
       console.log(`[RESTORE] Auto-starting saved bot: ${clean}`);
-      try {
-        await startBot(clean);
-      } catch (e) {
-        console.log(`[RESTORE] Failed ${clean}:`, e.message);
-      }
+      try { await startBot(clean); } catch (e) { console.log(`[RESTORE] Failed ${clean}:`, e.message); }
       await new Promise(r => setTimeout(r, 1000));
     }
-  } catch (e) {
-    console.log('[RESTORE] Error:', e.message);
-  }
+  } catch (e) { console.log('[RESTORE] Error:', e.message); }
 }
 
 const PORT = process.env.PORT || config.port || 3000;
