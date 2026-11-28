@@ -1,13 +1,23 @@
-// KNIGHT XMD - Group Status Delete - REAL
+// KNIGHT XMD - Group Status Delete - INSTANT Delete For Everyone
 // File: plugins/gcstatusdelete.js
-// Deletes Group Status posts in group. Bot must be Group Admin.
-// Works for: Group Status auto-delete + Reply delete + Warn
+// Bot must be Group Admin. Deletes Group Status INSTANTLY, then warns.
 
 const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, '../database/warnings.json');
 const CFG_PATH = path.join(__dirname, '../database/antigcstatus.json');
+
+// INSTANT: Cache group metadata for 30 seconds - no repeated slow fetch
+const metaCache = new Map();
+async function getMeta(sock, from) {
+  const now = Date.now();
+  const cached = metaCache.get(from);
+  if (cached && now - cached.time < 30000) return cached.meta;
+  const meta = await sock.groupMetadata(from);
+  metaCache.set(from, { meta, time: now });
+  return meta;
+}
 
 function bold(str) {
   const A = '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙';
@@ -34,23 +44,19 @@ function unwrap(msg) {
   return msg;
 }
 
-// REAL: Check if this message is a Group Status post
 function isGroupStatus(m) {
   if (!m?.message) return false;
   const raw = m.message;
-  // Baileys sends Group Status as groupStatusMessage
   if (raw.groupStatusMessage) return true;
-  // Some versions set groupStatus flag in messageContextInfo
   if (m.messageContextInfo?.groupStatus === true) return true;
   if (raw.messageContextInfo?.groupStatus === true) return true;
-  // Fallback: check unwrapped
   const u = unwrap(raw);
   if (u?.groupStatusMessage) return true;
   return false;
 }
 
-function isAdminOf(meta, jid, sock) {
-  if (!jid) return false;
+function isAdminOf(meta, jid) {
+  if (!jid || !meta) return false;
   const num = String(jid).split('@')[0].split(':')[0];
   const entry = meta.participants.find(p => {
     const n = (p.id || '').split('@')[0].split(':')[0];
@@ -59,25 +65,9 @@ function isAdminOf(meta, jid, sock) {
   return entry?.admin === 'admin' || entry?.admin === 'superadmin';
 }
 
-async function checkBotAdmin(sock, from) {
-  try {
-    const meta = await sock.groupMetadata(from);
-    return isAdminOf(meta, sock.user?.id, sock);
-  } catch (e) {
-    console.log('[GCSTATUS ADMIN CHECK]', e.message);
-    return false;
-  }
-}
-
-async function checkSenderAdmin(sock, from, sender) {
-  try {
-    const meta = await sock.groupMetadata(from);
-    return isAdminOf(meta, sender, sock);
-  } catch { return false; }
-}
-
-async function deleteForEveryone(sock, from, key) {
-  await sock.sendMessage(from, { delete: key });
+// INSTANT DELETE - No waiting, direct Baileys delete
+async function deleteInstant(sock, from, key) {
+  return sock.sendMessage(from, { delete: key });
 }
 
 function getQuoted(m) {
@@ -105,7 +95,6 @@ function getQuoted(m) {
     || raw.groupStatusMessage?.contextInfo
     || null;
   if (!ctx?.stanzaId) return null;
-  // FIX: Never leave participant as null for group delete - use quoted participant or sender
   const participant = ctx.participant || m.key.participant;
   return {
     key: { remoteJid: m.key.remoteJid, fromMe: false, id: ctx.stanzaId, participant },
@@ -115,7 +104,7 @@ function getQuoted(m) {
   };
 }
 
-async function warnAndMaybeKick(sock, from, targetJid, deleted) {
+async function warnAndMaybeKick(sock, from, targetJid) {
   const db = load(DB_PATH);
   db[from] = db[from] || {};
   const targetNum = targetJid.split('@')[0].split(':')[0];
@@ -139,6 +128,7 @@ async function warnAndMaybeKick(sock, from, targetJid, deleted) {
   });
 }
 
+// ===== INSTANT AUTO DELETE =====
 async function handleGroupStatus(sock, m, from) {
   try {
     if (!m?.message) return false;
@@ -147,24 +137,27 @@ async function handleGroupStatus(sock, m, from) {
     if (!isGroupStatus(m)) return false;
 
     const cfg = load(CFG_PATH);
-    if (cfg[from]?.on !== true) return false; // FIX: Default OFF, only true = ON
+    if (cfg[from]?.on !== true) return false;
 
     const sender = m.key.participant || m.key.remoteJid;
     if (!sender) return false;
 
-    // Do not delete admin posts
-    const senderIsAdmin = await checkSenderAdmin(sock, from, sender);
-    if (senderIsAdmin) return false;
+    // INSTANT: ONE metadata call for both sender + bot - not 2 calls
+    let meta;
+    try { meta = await getMeta(sock, from); } catch { return false; }
 
-    const botAdmin = await checkBotAdmin(sock, from);
-    if (!botAdmin) {
+    if (isAdminOf(meta, sender)) return false; // Do not delete admin posts
+    if (!isAdminOf(meta, sock.user?.id)) {
       await sock.sendMessage(from, { text: `⚠️ ${bold('Group Status: A member posted a Group Status, but the bot is not an admin, so it cannot delete it. Please make the bot an admin.')}` });
       return false;
     }
 
-    console.log(`[GCSTATUS] Deleting Group Status from ${sender} in ${from} | id=${m.key.id}`);
-    await deleteForEveryone(sock, from, m.key);
-    await warnAndMaybeKick(sock, from, sender, true);
+    // INSTANT: DELETE FIRST - Do not wait for warn, kick, or anything else
+    console.log(`[GCSTATUS INSTANT] Deleting ${m.key.id} from ${sender}`);
+    await deleteInstant(sock, from, m.key);
+
+    // THEN warn - after delete, not before
+    warnAndMaybeKick(sock, from, sender).catch(e => console.log('[GCSTATUS WARN]', e.message));
     return true;
   } catch (e) {
     console.log('[GCSTATUS AUTO]', e.message);
@@ -173,7 +166,6 @@ async function handleGroupStatus(sock, m, from) {
 }
 
 const commands = [
-  // .antigcstatus on / off - REAL toggle, default OFF
   {
     command: ['antigcstatus', 'antigcstatusmention', 'gcstatus'],
     run: async ({ from, reply, args, text, isGroup }) => {
@@ -196,26 +188,21 @@ const commands = [
       return reply(`❌ ${bold('Usage:')} .antigcstatus ${bold('on / off')}`);
     }
   },
-  // .gcstatus delete - Reply to a Group Status post
   {
     command: ['gcstatusdelete', 'deletegcstatus', 'delgcstatus', 'dgcstatus'],
     run: async ({ sock, m, from, reply, args, isGroup }) => {
       if (!isGroup && !from.endsWith('@g.us')) return reply(`❌ ${bold('Only in groups.')}`);
       const arg = (args[0] || '').toLowerCase();
       if (arg !== 'delete' && arg !== 'del') return reply(`❌ ${bold('Usage:')} Reply to the Group Status post + .gcstatus delete`);
-
       const q = getQuoted(m);
       if (!q) return reply(`❌ ${bold('No quoted message found.')} ${bold('Reply to the message again. If it is ViewOnce, open it first, then reply.')}`);
-
-      const isAdmin = await checkBotAdmin(sock, from);
-      if (!isAdmin) return reply(`❌ ${bold('Bot must be Group Admin to delete for everyone. Make the bot admin and try again.')}`);
-
+      // INSTANT: Try delete first, check admin only if delete fails
       try {
-        await deleteForEveryone(sock, from, q.key);
+        await deleteInstant(sock, from, q.key);
         return reply(`✅ ${bold('Deleted for everyone.')}`);
       } catch (e) {
         console.log('[GCSTATUS DELETE ERROR]', e);
-        return reply(`❌ ${bold('Delete failed:')} ${e.message}\n${bold('Message ID:')} ${q.key.id}\n${bold('Participant:')} ${q.key.participant || 'Unknown'}\n${bold('Check: Bot admin? Message less than 2 days old?')}`);
+        return reply(`❌ ${bold('Delete failed:')} ${e.message}\n${bold('Message ID:')} ${q.key.id}\n${bold('Check: Bot admin? Message less than 2 days old?')}`);
       }
     }
   },
@@ -225,12 +212,9 @@ const commands = [
       if (!from.endsWith('@g.us')) return reply(`❌ ${bold('Only in groups.')}`);
       const q = getQuoted(m);
       if (!q?.participant) return reply(`❌ ${bold('Reply to the post +')} .gwarn`);
-
-      const isAdmin = await checkBotAdmin(sock, from);
-      if (!isAdmin) return reply(`❌ ${bold('Bot must be Group Admin.')}`);
-
-      try { await deleteForEveryone(sock, from, q.key); } catch (e) { console.log('[GWARN DELETE]', e.message); }
-      await warnAndMaybeKick(sock, from, q.participant, true);
+      // INSTANT: Delete first, warn after
+      try { await deleteInstant(sock, from, q.key); } catch (e) { console.log('[GWARN DELETE]', e.message); }
+      await warnAndMaybeKick(sock, from, q.participant);
     }
   },
   {
