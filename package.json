@@ -4,11 +4,9 @@
   "description": "Knight XMD - WhatsApp Bot by Faceless Tech",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "npm install"
+    "start": "node server.js"
   },
   "dependencies": {
-    "ceaser-baileys": "^3.4.15",
     "@whiskeysockets/baileys": "^6.7.0",
     "axios": "^1.7.9",
     "dotenv": "^16.4.5",
@@ -32,6 +30,6 @@
     "yt-dlp-exec": "^1.0.1"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   }
 }
